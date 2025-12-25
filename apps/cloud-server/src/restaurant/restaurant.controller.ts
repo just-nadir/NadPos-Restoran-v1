@@ -1,17 +1,12 @@
-import { Controller, Get, Post, Body } from '@nestjs/common';
+import { Controller, Get, Param, Headers } from '@nestjs/common';
 import { RestaurantService } from './restaurant.service';
 
 @Controller('restaurants')
 export class RestaurantController {
     constructor(private readonly restaurantService: RestaurantService) { }
 
-    @Post()
-    async create(@Body() body: { id: string; name: string }) {
-        return await this.restaurantService.create(body);
-    }
-
-    @Get()
-    async findAll() {
-        return await this.restaurantService.findAll();
+    @Get(':id/verify')
+    async verify(@Param('id') id: string, @Headers('x-access-key') accessKey: string) {
+        return await this.restaurantService.verify(id, accessKey);
     }
 }

@@ -2,14 +2,18 @@
 
 ## Bajarilgan Ishlar
 -   [x] Loyiha strukturasi tahlil qilindi.
--   [x] Memory Bank tizimi uchun asosiy papka va fayllar yaratildi.
+-   [x] Memory Bank tizimi joriy etildi.
+-   [x] **Litsenziya Tizimi**: Koddan va dependencylardan butunlay olib tashlandi (`WaiterApp` va boshqa joylardan).
+-   [x] **Multi-Restoran (Backend)**: `Restaurant` entitysi yangilandi, `AdminRestaurantController` yaratildi.
+-   [x] **Cloud Admin Panel**: Dashboard va Restoran yaratish sahifalari ishga tushirildi.
+-   [x] **POS Onboarding**: Dasturga kirishda Restoran ID va Key so'rash tizimi yaratildi.
+-   [x] **VPS Deploy**: Tizim `213.142.148.35` serveriga joylandi (`halboldi.uz`).
+-   [x] **Sinxronizatsiya**: POS va Cloud o'rtasida xavfsiz (`x-access-key`) aloqa o'rnatildi.
 
 ## Rejalashtirilgan Ishlar
--   [ ] Litsenziya tizimini `apps/license-manager` dan va boshqa bog'liq joylardan olib tashlash.
--   [ ] `apps/cloud-admin` da restoran qo'shish funksiyasini to'liq ishga tushirish.
--   [ ] VPS server bilan bog'lanish va deploy jarayonini avtomatlashtirish.
--   [ ] O'zbek tili lokalizatsiyasini yakunlash.
+-   [ ] **Lokalizatsiya**: O'zbek tili tarjimalarini to'ldirish (agar kamchiliklar bo'lsa).
+-   [ ] **Monitoring**: Server error loglarini kuzatish va optimallashtirish.
+-   [ ] **Backup Tizimi**: VPS da ma'lumotlar bazasini avtomatik rezerv nusxalashni sozlash (kelajakda).
 
 ## Ma'lum Muammolar
--   Ba'zi fayllarga (masalan, `/home/ares/.gemini/GEMINI.md`) ruxsat yo'qligi sababli ishchi hududga ko'chirildi.
--   Litsenziya tizimi kodda hali ham mavjud va uni tozalash kerak.
+-   Hozircha jiddiy ma'lum muammolar yo'q. Tizim barqaror ishlamoqda.

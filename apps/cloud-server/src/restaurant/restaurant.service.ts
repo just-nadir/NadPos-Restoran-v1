@@ -1,7 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Restaurant } from './entities/restaurant.entity';
+import * as crypto from 'crypto';
+import { CreateRestaurantDto } from './dto/create-restaurant.dto';
 
 @Injectable()
 export class RestaurantService {
@@ -10,8 +12,12 @@ export class RestaurantService {
         private restaurantRepository: Repository<Restaurant>,
     ) { }
 
-    async create(data: { id: string; name: string }) {
-        const restaurant = this.restaurantRepository.create(data);
+    async create(createRestaurantDto: CreateRestaurantDto) {
+        const restaurant = this.restaurantRepository.create({
+            id: crypto.randomUUID(),
+            accessKey: crypto.randomBytes(16).toString('hex'), // Secure random key
+            ...createRestaurantDto
+        });
         return await this.restaurantRepository.save(restaurant);
     }
 
@@ -22,6 +28,18 @@ export class RestaurantService {
     }
 
     async findOne(id: string) {
-        return await this.restaurantRepository.findOne({ where: { id } });
+        const restaurant = await this.restaurantRepository.findOne({ where: { id } });
+        if (!restaurant) {
+            throw new NotFoundException(`Restaurant with ID ${id} not found`);
+        }
+        return restaurant;
+    }
+
+    async verify(id: string, accessKey: string) {
+        const restaurant = await this.restaurantRepository.findOne({ where: { id, accessKey } });
+        if (!restaurant) {
+            throw new NotFoundException('Invalid credentials');
+        }
+        return { valid: true, restaurant };
     }
 }

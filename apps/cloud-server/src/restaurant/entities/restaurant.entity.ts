@@ -12,4 +12,7 @@ export class Restaurant {
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;
+
+    @Column({ name: 'access_key', nullable: true })
+    accessKey: string;
 }

@@ -1,7 +1,7 @@
-const { db, RESTAURANT_ID } = require('./database.cjs');
+const { db } = require('./database.cjs');
 const log = require('electron-log');
 
-const CLOUD_API_URL = 'http://213.142.148.35'; // Production URL
+const CLOUD_API_URL = 'https://halboldi.uz/api'; // Production URL
 const SYNC_INTERVAL_MS = 10000; // 10 seconds
 
 let isSyncing = false;
@@ -24,9 +24,30 @@ function notifyUI(status, lastSync) {
     }
 }
 
+function getCredentials() {
+    try {
+        const idRow = db.prepare("SELECT value FROM settings WHERE key = 'restaurant_id'").get();
+        const keyRow = db.prepare("SELECT value FROM settings WHERE key = 'access_key'").get();
+
+        if (idRow && keyRow) {
+            return { restaurantId: idRow.value, accessKey: keyRow.value };
+        }
+    } catch (e) {
+        log.error("Credential fetch error:", e);
+    }
+    return null;
+}
+
 async function pushChanges() {
+    const creds = getCredentials();
+    if (!creds) {
+        console.log("⏳ Sync Skipped: No credentials found.");
+        return false;
+    }
+    const { restaurantId, accessKey } = creds;
+
     const payload = {
-        restaurantId: RESTAURANT_ID,
+        restaurantId,
         tables: {}
     };
     let hasChanges = false;
@@ -55,7 +76,10 @@ async function pushChanges() {
     try {
         const response = await fetch(`${CLOUD_API_URL}/sync/push`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                'x-access-key': accessKey
+            },
             body: JSON.stringify(payload)
         });
 
@@ -111,12 +135,15 @@ function startSyncService() {
         // Always notify online if we successfully checked (didn't catch an error)
         // Since error states are handled inside push/pull, if we are here we are "online"
         if (!pushed && !pulled) {
-            notifyUI('online', new Date().toISOString());
+            const creds = getCredentials();
+            if (creds) { // Only notify online if we are actually allowed to sync
+                notifyUI('online', new Date().toISOString());
 
-            heartbeatCounter++;
-            if (heartbeatCounter >= 6) { // Every 1 minute
-                console.log(`💓 Sync Heartbeat: ${new Date().toLocaleTimeString()} (All synced)`);
-                heartbeatCounter = 0;
+                heartbeatCounter++;
+                if (heartbeatCounter >= 6) { // Every 1 minute
+                    console.log(`💓 Sync Heartbeat: ${new Date().toLocaleTimeString()} (All synced)`);
+                    heartbeatCounter = 0;
+                }
             }
         }
 
@@ -125,6 +152,10 @@ function startSyncService() {
 }
 
 async function pullChanges() {
+    const creds = getCredentials();
+    if (!creds) return false;
+    const { restaurantId, accessKey } = creds;
+
     // 1. Get last pulled time
     const setting = db.prepare("SELECT value FROM settings WHERE key = 'last_pulled_at'").get();
     const lastPulledAt = setting ? setting.value : '1970-01-01T00:00:00.000Z';
@@ -132,11 +163,13 @@ async function pullChanges() {
     // 2. Fetch from Cloud
     try {
         const queryParams = new URLSearchParams({
-            restaurantId: RESTAURANT_ID,
+            restaurantId: restaurantId,
             lastSyncTime: lastPulledAt
         });
 
-        const response = await fetch(`${CLOUD_API_URL}/sync/pull?${queryParams}`);
+        const response = await fetch(`${CLOUD_API_URL}/sync/pull?${queryParams}`, {
+            headers: { 'x-access-key': accessKey }
+        });
         if (!response.ok) {
             throw new Error(`Cloud error: ${response.status} ${response.statusText}`);
         }

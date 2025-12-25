@@ -20,7 +20,7 @@ const Dashboard: React.FC = () => {
 
     const fetchRestaurants = async () => {
         try {
-            const response = await api.get('/restaurants');
+            const response = await api.get('/admin/restaurants');
             setRestaurants(response.data);
         } catch (err) {
             console.error('Fetch error:', err);
@@ -46,7 +46,7 @@ const Dashboard: React.FC = () => {
                 <div className="flex justify-between items-center mb-8">
                     <h2 className="text-2xl font-bold text-gray-900">Dashboard</h2>
                     <button
-                        onClick={() => navigate('/onboarding')}
+                        onClick={() => navigate('/create-restaurant')}
                         className="flex items-center bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
                     >
                         <PlusCircle className="w-5 h-5 mr-2" /> Add Restaurant

@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const api = axios.create({
-    baseURL: 'http://api.halboldi.uz', // Or '/api' for proxy
+    baseURL: 'https://halboldi.uz/api', // Proxied via Nginx
     headers: {
         'Content-Type': 'application/json',
     },

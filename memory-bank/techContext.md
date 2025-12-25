@@ -4,29 +4,35 @@
 ### Backend (Cloud Server)
 -   **Language**: TypeScript.
 -   **Framework**: NestJS.
--   **Database**: PostgreSQL.
+-   **Database**: PostgreSQL (Docker container `nadpos_db` v15-alpine).
 -   **ORM**: TypeORM.
 -   **Real-time**: Socket.io.
 
 ### Frontend / Desktop (POS Desktop)
 -   **Language**: JavaScript / TypeScript.
--   **Runtime**: Electron.
--   **Framework**: React.
--   **Bundler**: Vite.
--   **Styling**: TailwindCSS.
--   **Local DB**: better-sqlite3.
--   **Routing**: react-router-dom.
--   **HTTP Client**: Axios.
+-   **Runtime**: Electron (`^33.2.1`).
+-   **Framework**: React (Vite).
+-   **Local DB**: better-sqlite3 (v2 schema).
+-   **HTTP Client**: Axios & Fetch.
+
+### Cloud Admin
+-   **Framework**: React (Vite).
+-   **Deploy**: Nginx Static Hosting.
+
+## Production Environment (VPS)
+-   **Server**: Ubuntu (213.142.148.35).
+-   **Domain**: `https://halboldi.uz`.
+-   **Web Server**: Nginx (Reverse Proxy + SSL by Let's Encrypt).
+-   **Backend Process**: PM2 (`nadpos-cloud`).
+-   **Database**: Docker Container.
 
 ## Rivojlanish Muhiti (Development Setup)
--   **Node.js**: Asosiy ishlash muhiti.
--   **Package Manager**: `npm` (ko'rinishidan package-lock.json ishlatilmoqda) yoki `yarn`/`pnpm` (tekshirish kerak).
+-   **Node.js**: v20+ tavsiya etiladi.
 -   **Commands**:
-    -   `npm run dev`: Lokal serverni ishga tushirish.
+    -   `npm run dev`: Cloud serverni lokal ishga tushirish (agar root da bo'lsa).
+    -   `npm run electron:dev`: POS Desktopni development rejimida ishga tushirish.
     -   `npm run build`: Loyihani yig'ish.
-    -   `npm run electron`: Desktop ilovani ishga tushirish.
 
 ## Texnik Cheklovlar
--   **Electron Versiyasi**: `^33.2.1` (Juda yangi versiya).
--   **Node Version**: Zamonaviy versiya talab qilinadi (kamida v18+).
--   **OS**: Linux (Sizning joriy muhitingiz), Windows va macOS qo'llab-quvvatlanadi (Electron orqali).
+-   **Internet**: POS oflayn ishlay oladi, lekin dastlabki sozlash (`Onboarding`) uchun internet kerak.
+-   **OS**: Linux (Arch/Ubuntu), Windows, macOS.

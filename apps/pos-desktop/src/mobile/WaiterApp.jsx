@@ -12,10 +12,10 @@ import { useMenu } from '../hooks/useMenu';
 import { useGlobal } from '../context/GlobalContext'; // useGlobal qo'shildi
 import MobilePinLogin from './MobilePinLogin';
 import ConfirmModal from '../components/ConfirmModal';
-import LicenseLock from '../components/LicenseLock'; // YANGI
+
 
 const WaiterApp = () => {
-  const { user, login, logout, settings, showToast, license, checkLicense } = useGlobal(); // Global user state va license
+  const { user, login, logout, settings, showToast } = useGlobal(); // Global user state
 
   const [view, setView] = useState('tables'); // 'tables', 'menu', 'cart', 'orders'
   const [filterMode, setFilterMode] = useState('all'); // 'all', 'mine', 'free'
@@ -62,17 +62,7 @@ const WaiterApp = () => {
     }
   }, [toast]);
 
-  // YANGI: Litsenziya tekshiruvi
-  if (license && !license.active && license.checked) {
-    return (
-      <LicenseLock
-        reason={license.reason}
-        lastOnline={license.lastOnline}
-        expiry={license.expiry}
-        onUnlock={checkLicense}
-      />
-    );
-  }
+
 
   // LOGIN SCREEN
   if (!user) {
