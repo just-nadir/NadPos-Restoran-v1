@@ -8,8 +8,7 @@ export class Restaurant {
     @Column()
     name: string;
 
-    @Column({ name: 'license_key', unique: true })
-    licenseKey: string;
+
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;

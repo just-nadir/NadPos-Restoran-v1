@@ -7,7 +7,7 @@ import TablesGrid from './TablesGrid';
 import OrderSummary from './OrderSummary';
 import PinLogin from './PinLogin';
 
-import LicenseLock from './LicenseLock';
+
 import ShiftModal from './ShiftModal'; // YANGI
 
 // --- OPTIMIZATSIYA: Dangasa Yuklash (Lazy Loading) ---
@@ -50,18 +50,7 @@ const DesktopLayout = () => {
   }
 
   // YANGI: Litsenziya tekshiruvi (PAUSED)
-  /*
-  if (!license.active && license.checked) {
-    return (
-      <LicenseLock
-        reason={license.reason}
-        lastOnline={license.lastOnline}
-        expiry={license.expiry}
-        onUnlock={checkLicense}
-      />
-    );
-  }
-  */
+
 
   if (!user) {
     return <PinLogin />;

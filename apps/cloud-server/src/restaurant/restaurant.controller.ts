@@ -6,7 +6,7 @@ export class RestaurantController {
     constructor(private readonly restaurantService: RestaurantService) { }
 
     @Post()
-    async create(@Body() body: { id: string; name: string; licenseKey: string }) {
+    async create(@Body() body: { id: string; name: string }) {
         return await this.restaurantService.create(body);
     }
 

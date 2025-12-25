@@ -10,7 +10,7 @@ export class RestaurantService {
         private restaurantRepository: Repository<Restaurant>,
     ) { }
 
-    async create(data: { id: string; name: string; licenseKey: string }) {
+    async create(data: { id: string; name: string }) {
         const restaurant = this.restaurantRepository.create(data);
         return await this.restaurantRepository.save(restaurant);
     }

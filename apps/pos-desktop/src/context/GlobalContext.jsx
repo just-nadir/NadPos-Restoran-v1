@@ -14,32 +14,16 @@ export const GlobalProvider = ({ children }) => {
 
   // YANGI: License Status
   const [license, setLicense] = useState({
-    active: true, // Default true to prevent flickering before check
-    checked: false,
+    active: true, // Always active
+    checked: true,
     reason: null,
     expiry: null,
     lastOnline: null
   });
 
   const checkLicense = async () => {
-    if (window.electron) {
-      try {
-        const result = await window.electron.ipcRenderer.invoke('license-get-info');
-        setLicense({
-          active: result.active,
-          reason: result.status, // rename reason -> status
-          expiry: result.expiry,
-          lastOnline: null,
-          checked: true
-        });
-        return result.active;
-      } catch (err) {
-        console.error("License check failed:", err);
-        setLicense(prev => ({ ...prev, checked: true }));
-        return false;
-      }
-    }
-    return true; // Web browserda (electron yo'q bo'lsa) o'tkazib yuboramiz
+    // Litsenziya tekshiruvini butunlay chetlab o'tamiz
+    return true;
   };
 
   useEffect(() => {
