@@ -1,6 +1,7 @@
 const { db, notify } = require('../database.cjs');
 const log = require('electron-log');
 const telegramController = require('./telegramController.cjs');
+const crypto = require('crypto');
 
 module.exports = {
     // Smenani ochish
@@ -13,12 +14,13 @@ module.exports = {
             }
 
             const startTime = new Date().toISOString();
-            const stmt = db.prepare("INSERT INTO shifts (start_time, start_cash, status, cashier_name) VALUES (?, ?, 'open', ?)");
-            const info = stmt.run(startTime, startCash || 0, cashierName);
+            const id = crypto.randomUUID();
+            const stmt = db.prepare("INSERT INTO shifts (id, start_time, start_cash, status, cashier_name) VALUES (?, ?, ?, 'open', ?)");
+            const info = stmt.run(id, startTime, startCash || 0, cashierName);
 
-            log.info(`Smena ochildi: ID ${info.lastInsertRowid}, Kassir: ${cashierName}`);
+            log.info(`Smena ochildi: ID ${id}, Kassir: ${cashierName}`);
             notify('shift-status', 'open');
-            return { success: true, shiftId: info.lastInsertRowid };
+            return { success: true, shiftId: id };
         } catch (err) {
             log.error("openShift xatosi:", err);
             throw err;

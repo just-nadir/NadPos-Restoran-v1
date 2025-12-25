@@ -1,10 +1,11 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 const log = require('electron-log');
-const { initDB, onChange } = require('./database.cjs'); 
+const { initDB, onChange } = require('./database.cjs');
 const startServer = require('./server.cjs');
 const initScheduler = require('./services/scheduler.cjs'); // YANGI
 const registerIpcHandlers = require('./ipcHandlers.cjs'); // YANGI
+const { startSyncService, setMainWindow } = require('./sync_service.cjs'); // YANGI
 
 // --- LOGGER SOZLAMALARI ---
 log.transports.file.level = 'info';
@@ -29,10 +30,10 @@ function createWindow() {
 
     // Printerlarni olish
     ipcMain.handle('get-system-printers', async () => {
-        const wins = BrowserWindow.getAllWindows();
-        if (wins.length === 0) return [];
-        const printers = await wins[0].webContents.getPrintersAsync();
-        return printers;
+      const wins = BrowserWindow.getAllWindows();
+      if (wins.length === 0) return [];
+      const printers = await wins[0].webContents.getPrintersAsync();
+      return printers;
     });
     log.info("Dastur ishga tushdi. Baza, Server va Scheduler yondi.");
   } catch (err) {
@@ -50,7 +51,7 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs')
     },
   });
-  
+
   onChange((type, id) => {
     if (!win.isDestroyed()) {
       win.webContents.send('db-change', { type, id });
@@ -61,17 +62,21 @@ function createWindow() {
     win.loadURL(process.env.VITE_DEV_SERVER_URL);
   } else {
     if (!app.isPackaged) {
-        win.loadURL('http://localhost:5173');
-        console.log("Development rejimida: http://localhost:5173 yuklanmoqda...");
+      win.loadURL('http://localhost:5173');
+      console.log("Development rejimida: http://localhost:5173 yuklanmoqda...");
     } else {
-        win.loadFile(path.join(__dirname, '../dist/index.html'));
+      win.loadFile(path.join(__dirname, '../dist/index.html'));
     }
   }
+
+  // Set window for sync status updates
+  setMainWindow(win);
+  startSyncService();
 
   win.webContents.on('render-process-gone', (event, details) => {
     log.error('Renderer jarayoni quladi:', details.reason);
     if (details.reason === 'crashed') {
-        win.reload();
+      win.reload();
     }
   });
 }
@@ -81,7 +86,7 @@ app.whenReady().then(() => {
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createWindow(); });
 });
 
-app.on('window-all-closed', () => { 
-    log.info("Dastur yopildi.");
-    if (process.platform !== 'darwin') app.quit(); 
+app.on('window-all-closed', () => {
+  log.info("Dastur yopildi.");
+  if (process.platform !== 'darwin') app.quit();
 });

@@ -1,4 +1,5 @@
 const axios = require('axios');
+const crypto = require('crypto');
 const FormData = require('form-data');
 const { db } = require('../database.cjs');
 const log = require('electron-log');
@@ -30,11 +31,11 @@ const getCredentials = () => {
  */
 const formatPhone = (phone) => {
     let cleanPhone = phone.replace(/\D/g, ''); // Faqat raqamlar
-    
+
     if (cleanPhone.length === 9) {
         cleanPhone = '998' + cleanPhone; // 998 prefiksini qo'shish
     }
-    
+
     if (cleanPhone.length !== 12) {
         return {
             valid: false,
@@ -42,7 +43,7 @@ const formatPhone = (phone) => {
             error: `Noto'g'ri raqam formati: ${phone} (12 raqam bo'lishi kerak, masalan: 998901234567)`
         };
     }
-    
+
     return { valid: true, phone: cleanPhone, error: null };
 };
 
@@ -56,7 +57,7 @@ const formatPhone = (phone) => {
  */
 const loginToEskiz = async () => {
     const { email, password } = getCredentials();
-    
+
     if (!email || !password) {
         log.warn("SMS Service: Eskiz login/parol sozlanmagan");
         return null;
@@ -101,7 +102,7 @@ const sendSMS = async (phone, message, type = 'manual', retryCount = 0) => {
         log.warn(`SMS Service: ${phoneValidation.error}`);
         return { success: false, error: phoneValidation.error };
     }
-    
+
     const cleanPhone = phoneValidation.phone;
     const { nickname } = getCredentials();
 
@@ -109,16 +110,16 @@ const sendSMS = async (phone, message, type = 'manual', retryCount = 0) => {
     if (!token) {
         log.info("SMS Service: Token yo'q, login qilinmoqda...");
         await loginToEskiz();
-        
+
         if (!token) {
             const errorMsg = "Avtorizatsiya xatosi: Token olinmadi";
             log.error(`SMS Service: ${errorMsg}`);
-            
+
             // Bazaga failed status yozish
             db.prepare(
-                "INSERT INTO sms_logs (phone, message, status, date, type) VALUES (?, ?, ?, datetime('now', 'localtime'), ?)"
-            ).run(cleanPhone, message, 'failed', type);
-            
+                "INSERT INTO sms_logs (id, phone, message, status, date, type) VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?)"
+            ).run(crypto.randomUUID(), cleanPhone, message, 'failed', type);
+
             return { success: false, error: errorMsg };
         }
     }
@@ -141,20 +142,20 @@ const sendSMS = async (phone, message, type = 'manual', retryCount = 0) => {
         // Muvaffaqiyatli yuborildi
         const status = 'sent';
         db.prepare(
-            "INSERT INTO sms_logs (phone, message, status, date, type) VALUES (?, ?, ?, datetime('now', 'localtime'), ?)"
-        ).run(cleanPhone, message, status, type);
-        
+            "INSERT INTO sms_logs (id, phone, message, status, date, type) VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?)"
+        ).run(crypto.randomUUID(), cleanPhone, message, status, type);
+
         log.info(`SMS Service: SMS yuborildi - ${cleanPhone} (${type})`);
         return { success: true, data: response.data };
 
     } catch (error) {
         const errorDetail = error.response?.data?.message || error.message;
-        
+
         // 4. 401 xato (Token eskirgan) - Retry logikasi
         if (error.response?.status === 401 && retryCount < 1) {
             log.warn("SMS Service: Token eskirgan (401), qayta login qilinmoqda...");
             token = null; // Tokenni tozalash
-            
+
             // Rekursiv chaqiruv (1 marta retry)
             return await sendSMS(phone, message, type, retryCount + 1);
         }
@@ -162,14 +163,14 @@ const sendSMS = async (phone, message, type = 'manual', retryCount = 0) => {
         // 5. Xato yuz berdi
         const status = 'failed';
         db.prepare(
-            "INSERT INTO sms_logs (phone, message, status, date, type) VALUES (?, ?, ?, datetime('now', 'localtime'), ?)"
-        ).run(cleanPhone, message, status, type);
-        
+            "INSERT INTO sms_logs (id, phone, message, status, date, type) VALUES (?, ?, ?, ?, datetime('now', 'localtime'), ?)"
+        ).run(crypto.randomUUID(), cleanPhone, message, status, type);
+
         log.error(`SMS Service: SMS yuborishda xato - ${cleanPhone}:`, errorDetail);
         if (error.response?.data) {
             log.error("SMS Service: Eskiz Response:", JSON.stringify(error.response.data));
         }
-        
+
         return { success: false, error: errorDetail };
     }
 };

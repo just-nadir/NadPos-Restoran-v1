@@ -1,8 +1,16 @@
 import React from 'react';
-import { LayoutGrid, UtensilsCrossed, Settings, LogOut, Square, Users, FileText, PieChart, MessageSquare, Lock, Search, ChevronRight } from 'lucide-react';
+import { LayoutGrid, UtensilsCrossed, Settings, LogOut, Square, Users, FileText, PieChart, MessageSquare, Lock, Search, ChevronRight, Cloud, CloudOff, RefreshCw } from 'lucide-react';
 import { APP_INFO } from '../config/appConfig';
 
-const Sidebar = ({ activePage, onNavigate, onLogout, user, onCloseShift }) => {
+const Sidebar = ({ activePage, onNavigate, onLogout, user, onCloseShift, syncStatus }) => {
+  const getSyncIcon = () => {
+    const { status } = syncStatus || {};
+    if (status === 'syncing') return <RefreshCw className="animate-spin text-blue-500" size={20} />;
+    if (status === 'online') return <Cloud className="text-green-500" size={20} />;
+    if (status === 'error') return <CloudOff className="text-red-500" size={20} />;
+    return <CloudOff className="text-gray-300" size={20} />;
+  };
+
   const menuItems = [
     { id: 'pos', icon: <LayoutGrid size={28} />, label: "Kassa" },
     { id: 'menu', icon: <UtensilsCrossed size={28} />, label: "Menyu" },
@@ -62,6 +70,11 @@ const Sidebar = ({ activePage, onNavigate, onLogout, user, onCloseShift }) => {
           </button>
         )}
         <div className="flex flex-col items-center gap-3 mb-2">
+          {/* Sync Indicator */}
+          <div className="p-2 rounded-full bg-gray-50 flex items-center justify-center" title={`Sync: ${syncStatus?.status || 'Offline'} - ${syncStatus?.lastSync || ''}`}>
+            {getSyncIcon()}
+          </div>
+
           <button onClick={onLogout} className="p-3 text-red-500 hover:bg-red-50 rounded-xl transition-all shadow-sm border border-red-100" title="Chiqish">
             <LogOut size={24} />
           </button>

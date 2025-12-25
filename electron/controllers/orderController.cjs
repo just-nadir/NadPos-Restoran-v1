@@ -1,6 +1,7 @@
 const { db, notify } = require('../database.cjs');
 const printerService = require('../services/printerService.cjs');
 const log = require('electron-log');
+const crypto = require('crypto');
 const shiftController = require('../controllers/shiftController.cjs'); // YANGI
 
 
@@ -40,8 +41,9 @@ module.exports = {
             const addItemTransaction = db.transaction((item) => {
                 const { tableId, productName, price, quantity, destination } = item;
                 checkNumber = getOrCreateCheckNumber(tableId);
+                const id = crypto.randomUUID();
 
-                db.prepare(`INSERT INTO order_items (table_id, product_name, price, quantity, destination) VALUES (?, ?, ?, ?, ?)`).run(tableId, productName, price, quantity, destination);
+                db.prepare(`INSERT INTO order_items (id, table_id, product_name, price, quantity, destination) VALUES (?, ?, ?, ?, ?, ?)`).run(id, tableId, productName, price, quantity, destination);
 
                 const currentTable = db.prepare('SELECT total_amount, waiter_name FROM tables WHERE id = ?').get(tableId);
                 const newTotal = (currentTable ? currentTable.total_amount : 0) + (price * quantity);
@@ -81,7 +83,7 @@ module.exports = {
                 checkNumber = getOrCreateCheckNumber(tableId);
 
                 let additionalTotal = 0;
-                const insertStmt = db.prepare(`INSERT INTO order_items (table_id, product_name, price, quantity, destination) VALUES (?, ?, ?, ?, ?)`);
+                const insertStmt = db.prepare(`INSERT INTO order_items (id, table_id, product_name, price, quantity, destination) VALUES (?, ?, ?, ?, ?, ?)`);
 
                 const productStmt = db.prepare('SELECT destination FROM products WHERE name = ?');
                 const validatedItems = [];
@@ -106,7 +108,7 @@ module.exports = {
                         actualDestination = getDefaultKitchen();
                     }
 
-                    insertStmt.run(tableId, item.name, item.price, item.qty, actualDestination);
+                    insertStmt.run(crypto.randomUUID(), tableId, item.name, item.price, item.qty, actualDestination);
                     additionalTotal += (item.price * item.qty);
 
                     validatedItems.push({
@@ -250,7 +252,8 @@ module.exports = {
                     itemsJson = JSON.stringify(items);
                 }
 
-                db.prepare(`INSERT INTO sales (date, total_amount, subtotal, discount, payment_method, customer_id, items_json, check_number, waiter_name, guest_count, shift_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(date, total, subtotal, discount, paymentMethod, customerId, itemsJson, checkNumber, waiterName, guestCount, activeShift.id);
+                const saleId = crypto.randomUUID();
+                db.prepare(`INSERT INTO sales (id, date, total_amount, subtotal, discount, payment_method, customer_id, items_json, check_number, waiter_name, guest_count, shift_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(saleId, date, total, subtotal, discount, paymentMethod, customerId, itemsJson, checkNumber, waiterName, guestCount, activeShift.id);
 
                 // Handle debt for split payments
                 if (paymentMethod === 'split' && paymentDetails && customerId) {
@@ -260,20 +263,20 @@ module.exports = {
                         const totalDebt = debtPayments.reduce((sum, p) => sum + p.amount, 0);
 
                         db.prepare('UPDATE customers SET debt = debt + ? WHERE id = ?').run(totalDebt, customerId);
-                        db.prepare('INSERT INTO debt_history (customer_id, amount, type, date, comment) VALUES (?, ?, ?, ?, ?)').run(customerId, totalDebt, 'debt', date, `Savdo #${checkNumber} (${waiterName}) - Split`);
+                        db.prepare('INSERT INTO debt_history (id, customer_id, amount, type, date, comment) VALUES (?, ?, ?, ?, ?, ?)').run(crypto.randomUUID(), customerId, totalDebt, 'debt', date, `Savdo #${checkNumber} (${waiterName}) - Split`);
 
                         // Insert each debt into customer_debts
                         debtPayments.forEach(debtPayment => {
-                            db.prepare('INSERT INTO customer_debts (customer_id, amount, due_date, is_paid, created_at) VALUES (?, ?, ?, ?, ?)').run(customerId, debtPayment.amount, debtPayment.dueDate, 0, date);
+                            db.prepare('INSERT INTO customer_debts (id, customer_id, amount, due_date, is_paid, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(crypto.randomUUID(), customerId, debtPayment.amount, debtPayment.dueDate, 0, date);
                         });
                     }
                 } else if (paymentMethod === 'debt' && customerId) {
                     // Original debt handling for single payment
                     db.prepare('UPDATE customers SET debt = debt + ? WHERE id = ?').run(total, customerId);
-                    db.prepare('INSERT INTO debt_history (customer_id, amount, type, date, comment) VALUES (?, ?, ?, ?, ?)').run(customerId, total, 'debt', date, `Savdo #${checkNumber} (${waiterName})`);
+                    db.prepare('INSERT INTO debt_history (id, customer_id, amount, type, date, comment) VALUES (?, ?, ?, ?, ?, ?)').run(crypto.randomUUID(), customerId, total, 'debt', date, `Savdo #${checkNumber} (${waiterName})`);
 
                     // YANGI: customer_debts jadvaliga qarz yozish
-                    db.prepare('INSERT INTO customer_debts (customer_id, amount, due_date, is_paid, created_at) VALUES (?, ?, ?, ?, ?)').run(customerId, total, dueDate, 0, date);
+                    db.prepare('INSERT INTO customer_debts (id, customer_id, amount, due_date, is_paid, created_at) VALUES (?, ?, ?, ?, ?, ?)').run(crypto.randomUUID(), customerId, total, dueDate, 0, date);
                 }
 
                 if (customerId) {
@@ -365,8 +368,8 @@ module.exports = {
                         reason: "Kassir tomonidan o'chirildi"
                     };
 
-                    db.prepare(`INSERT INTO cancelled_orders (table_id, date, total_amount, waiter_name, items_json, reason) VALUES (?, ?, ?, ?, ?, ?)`).run(
-                        cancelledData.table_id, cancelledData.date, cancelledData.total_amount, cancelledData.waiter_name, cancelledData.items_json, cancelledData.reason
+                    db.prepare(`INSERT INTO cancelled_orders (id, table_id, date, total_amount, waiter_name, items_json, reason) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+                        crypto.randomUUID(), cancelledData.table_id, cancelledData.date, cancelledData.total_amount, cancelledData.waiter_name, cancelledData.items_json, cancelledData.reason
                     );
                 }
 

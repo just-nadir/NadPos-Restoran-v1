@@ -1,4 +1,5 @@
 const { db, notify } = require('../database.cjs');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { app } = require('electron');
@@ -20,54 +21,55 @@ module.exports = {
   },
 
   getKitchens: () => db.prepare('SELECT * FROM kitchens').all(),
-  
+
   saveKitchen: (data) => {
     // printer_type ni ham saqlaymiz. Default 'lan'.
     const type = data.printer_type || 'lan';
-    
+
     if (data.id) {
-        db.prepare('UPDATE kitchens SET name = ?, printer_ip = ?, printer_port = ?, printer_type = ? WHERE id = ?')
-          .run(data.name, data.printer_ip, data.printer_port || 9100, type, data.id);
+      db.prepare('UPDATE kitchens SET name = ?, printer_ip = ?, printer_port = ?, printer_type = ? WHERE id = ?')
+        .run(data.name, data.printer_ip, data.printer_port || 9100, type, data.id);
     } else {
-        db.prepare('INSERT INTO kitchens (name, printer_ip, printer_port, printer_type) VALUES (?, ?, ?, ?)')
-          .run(data.name, data.printer_ip, data.printer_port || 9100, type);
+      const id = crypto.randomUUID();
+      db.prepare('INSERT INTO kitchens (id, name, printer_ip, printer_port, printer_type) VALUES (?, ?, ?, ?, ?)')
+        .run(id, data.name, data.printer_ip, data.printer_port || 9100, type);
     }
     notify('kitchens', null);
   },
-  
+
   deleteKitchen: (id) => {
-      db.prepare("UPDATE products SET destination = NULL WHERE destination = ?").run(String(id));
-      const res = db.prepare('DELETE FROM kitchens WHERE id = ?').run(id);
-      notify('kitchens', null);
-      return res;
+    db.prepare("UPDATE products SET destination = NULL WHERE destination = ?").run(String(id));
+    const res = db.prepare('DELETE FROM kitchens WHERE id = ?').run(id);
+    notify('kitchens', null);
+    return res;
   },
 
   backupDB: () => {
-      try {
-          const dbPath = path.join(app.getAppPath(), 'pos.db');
-          const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-          const backupName = `pos_backup_${dateStr}.db`;
-          
-          const backupPath = path.join(app.getPath('documents'), 'POS_Backups', backupName);
-          const backupDir = path.dirname(backupPath);
+    try {
+      const dbPath = path.join(app.getAppPath(), 'pos.db');
+      const dateStr = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+      const backupName = `pos_backup_${dateStr}.db`;
 
-          if (!fs.existsSync(backupDir)) {
-              fs.mkdirSync(backupDir, { recursive: true });
-          }
-          
-          db.backup(backupPath)
-            .then(() => {
-                console.log('Backup successful:', backupPath);
-            })
-            .catch((err) => {
-                console.error('Backup failed:', err);
-                throw err;
-            });
+      const backupPath = path.join(app.getPath('documents'), 'POS_Backups', backupName);
+      const backupDir = path.dirname(backupPath);
 
-          return { success: true, path: backupPath };
-      } catch (err) {
-          console.error(err);
-          throw new Error("Backup qilib bo'lmadi: " + err.message);
+      if (!fs.existsSync(backupDir)) {
+        fs.mkdirSync(backupDir, { recursive: true });
       }
+
+      db.backup(backupPath)
+        .then(() => {
+          console.log('Backup successful:', backupPath);
+        })
+        .catch((err) => {
+          console.error('Backup failed:', err);
+          throw err;
+        });
+
+      return { success: true, path: backupPath };
+    } catch (err) {
+      console.error(err);
+      throw new Error("Backup qilib bo'lmadi: " + err.message);
+    }
   }
 };

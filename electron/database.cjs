@@ -7,125 +7,127 @@ const crypto = require('crypto');
 // --- Baza manzilini aniqlash ---
 const isDev = !app.isPackaged;
 const dbPath = isDev
-  ? path.join(__dirname, '../pos.db')
-  : path.join(app.getPath('userData'), 'pos.db');
+    ? path.join(__dirname, '../pos.db')
+    : path.join(app.getPath('userData'), 'pos.db');
 
-console.log("📂 BAZA MANZILI:", dbPath);
+console.log("📂 BAZA MANZILI (V2):", dbPath);
 
 const db = new Database(dbPath, { verbose: null });
 db.pragma('journal_mode = WAL');
 db.pragma('synchronous = NORMAL');
+db.pragma('foreign_keys = OFF'); // Migratsiya paytida o'chirib turamiz
+
 let changeListeners = [];
 
 function onChange(callback) {
-  changeListeners.push(callback);
+    changeListeners.push(callback);
 }
 
 function notify(type, id = null) {
-  changeListeners.forEach(cb => cb(type, id));
+    changeListeners.forEach(cb => cb(type, id));
 }
 
 // Hashlash funksiyasi
 function hashPIN(pin, salt) {
-  if (!salt) salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(pin, salt, 1000, 64, 'sha512').toString('hex');
-  return { salt, hash };
+    if (!salt) salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.pbkdf2Sync(pin, salt, 1000, 64, 'sha512').toString('hex');
+    return { salt, hash };
 }
 
-function initDB() {
-  try {
-    // --- MIGRATSIYA 1: Eski SMS jadvalini yangilash ---
-    const smsTableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='sms_templates'").get();
-    if (smsTableExists) {
-      const columns = db.prepare("PRAGMA table_info(sms_templates)").all();
-      if (!columns.some(c => c.name === 'content')) {
-        db.prepare("DROP TABLE sms_templates").run();
-        console.log("♻️ Eski SMS jadvali o'chirildi va yangisi yaratiladi.");
-      }
-    }
+// UUID Generator
+const uuidv4 = () => crypto.randomUUID();
 
-    // --- JADVALLARNI YARATISH ---
+// --- DATA TYPES & CONSTANTS ---
+const RESTAURANT_ID = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'; // Default UUID for v1 migration
+
+// --- V2 SCHEMA DEFINITION (UUID) ---
+function createV2Tables() {
 
     // 1. Zallar va Stollar
-    db.prepare(`CREATE TABLE IF NOT EXISTS halls (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)`).run();
-    db.prepare(`
-      CREATE TABLE IF NOT EXISTS tables (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        hall_id INTEGER,
+    db.prepare(`CREATE TABLE IF NOT EXISTS halls (
+        id TEXT PRIMARY KEY, 
+        name TEXT NOT NULL,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, deleted_at TEXT
+    )`).run();
+
+    db.prepare(`CREATE TABLE IF NOT EXISTS tables (
+        id TEXT PRIMARY KEY,
+        hall_id TEXT,
         name TEXT NOT NULL,
         status TEXT DEFAULT 'free',
         start_time TEXT,
         total_amount REAL DEFAULT 0,
         current_check_number INTEGER DEFAULT 0,
-        waiter_id INTEGER DEFAULT 0,
+        waiter_id TEXT, -- User UUID
         waiter_name TEXT,
         guests INTEGER DEFAULT 0,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, deleted_at TEXT,
         FOREIGN KEY(hall_id) REFERENCES halls(id) ON DELETE CASCADE
-      )
-    `).run();
+    )`).run();
 
-    // 2. Kategoriyalar va Mahsulotlar (YANGILANGAN STRUKTURA)
-    db.prepare(`CREATE TABLE IF NOT EXISTS categories (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL)`).run();
-    db.prepare(`
-      CREATE TABLE IF NOT EXISTS products (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        category_id INTEGER,
+    // 2. Kategoriyalar va Mahsulotlar
+    db.prepare(`CREATE TABLE IF NOT EXISTS categories (
+        id TEXT PRIMARY KEY, 
+        name TEXT NOT NULL,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, deleted_at TEXT
+    )`).run();
+
+    db.prepare(`CREATE TABLE IF NOT EXISTS products (
+        id TEXT PRIMARY KEY,
+        category_id TEXT,
         name TEXT NOT NULL,
         price REAL NOT NULL,
-        destination TEXT DEFAULT '1', 
+        destination TEXT DEFAULT '1', -- Kitchen ID (UUID)
         is_active INTEGER DEFAULT 1,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, deleted_at TEXT,
         FOREIGN KEY(category_id) REFERENCES categories(id)
-      )
-    `).run();
+    )`).run();
 
     // 3. Buyurtmalar
-    db.prepare(`
-      CREATE TABLE IF NOT EXISTS order_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        table_id INTEGER,
+    db.prepare(`CREATE TABLE IF NOT EXISTS order_items (
+        id TEXT PRIMARY KEY,
+        table_id TEXT,
         product_name TEXT,
         price REAL,
         quantity INTEGER,
         destination TEXT DEFAULT 'kitchen',
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(table_id) REFERENCES tables(id) ON DELETE CASCADE
-      )
-    `).run();
+    )`).run();
 
     // 4. Savdolar
-    db.prepare(`
-      CREATE TABLE IF NOT EXISTS sales (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+    db.prepare(`CREATE TABLE IF NOT EXISTS sales (
+        id TEXT PRIMARY KEY,
         check_number INTEGER,
         date TEXT,
         total_amount REAL,
         subtotal REAL,
         discount REAL,
         payment_method TEXT,
-        customer_id INTEGER,
+        customer_id TEXT,
         waiter_name TEXT,
         guest_count INTEGER,
-        items_json TEXT
-      )
-    `).run();
+        items_json TEXT,
+        shift_id TEXT,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`).run();
 
-    db.prepare(`
-      CREATE TABLE IF NOT EXISTS sale_items (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        sale_id INTEGER,
+    db.prepare(`CREATE TABLE IF NOT EXISTS sale_items (
+        id TEXT PRIMARY KEY,
+        sale_id TEXT,
         product_name TEXT,
         category_name TEXT,
         price REAL,
         quantity REAL,
         total_price REAL,
         date TEXT,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(sale_id) REFERENCES sales(id) ON DELETE CASCADE
-      )
-    `).run();
+    )`).run();
 
-    // 5. Mijozlar va Qarzlar
-    db.prepare(`
-      CREATE TABLE IF NOT EXISTS customers (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+    // 5. Mijozlar
+    db.prepare(`CREATE TABLE IF NOT EXISTS customers (
+        id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         phone TEXT,
         debt REAL DEFAULT 0,
@@ -133,112 +135,118 @@ function initDB() {
         type TEXT DEFAULT 'standard', 
         value INTEGER DEFAULT 0, 
         balance REAL DEFAULT 0, 
-        birthday TEXT
-      )
-    `).run();
+        birthday TEXT,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, deleted_at TEXT
+    )`).run();
 
-    db.prepare(`
-      CREATE TABLE IF NOT EXISTS debt_history (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_id INTEGER,
+    db.prepare(`CREATE TABLE IF NOT EXISTS debt_history (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT,
         amount REAL,
         type TEXT,
         date TEXT,
         comment TEXT,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE
-      )
-    `).run();
+    )`).run();
 
-    db.prepare(`
-      CREATE TABLE IF NOT EXISTS customer_debts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_id INTEGER,
+    db.prepare(`CREATE TABLE IF NOT EXISTS customer_debts (
+        id TEXT PRIMARY KEY,
+        customer_id TEXT,
         amount REAL,
         due_date TEXT,
         last_sms_date TEXT,
         is_paid INTEGER DEFAULT 0,
         created_at TEXT,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(customer_id) REFERENCES customers(id) ON DELETE CASCADE
-      )
-    `).run();
+    )`).run();
 
-    // 5.1 Bekor qilingan buyurtmalar (YANGI)
-    db.prepare(`
-      CREATE TABLE IF NOT EXISTS cancelled_orders (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        table_id INTEGER,
+    // 5.1 Bekor qilingan buyurtmalar
+    db.prepare(`CREATE TABLE IF NOT EXISTS cancelled_orders (
+        id TEXT PRIMARY KEY,
+        table_id TEXT,
         date TEXT,
         total_amount REAL,
         waiter_name TEXT,
-        items_json TEXT, -- Nimalar o'chirilgani
-        reason TEXT
-      )
-    `).run();
+        items_json TEXT,
+        reason TEXT,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`).run();
 
     // 6. Xodimlar
-    db.prepare(`
-      CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+    db.prepare(`CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
         pin TEXT UNIQUE,
         role TEXT DEFAULT 'waiter',
-        salt TEXT
-      )
-    `).run();
+        salt TEXT,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, deleted_at TEXT
+    )`).run();
 
-    // 7. Sozlamalar
-    db.prepare(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)`).run();
+    // 7. Sozlamalar (KEY-VALUE bo'lgani uchun ID UUID bo'lishi shart emas, lekin sync uchun kerak)
+    db.prepare(`CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT,
+        is_synced INTEGER DEFAULT 0,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`).run();
 
     // 8. Oshxona
-    db.prepare(`CREATE TABLE IF NOT EXISTS kitchens (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, printer_ip TEXT, printer_port INTEGER DEFAULT 9100, printer_type TEXT DEFAULT 'driver')`).run();
+    db.prepare(`CREATE TABLE IF NOT EXISTS kitchens (
+        id TEXT PRIMARY KEY, 
+        name TEXT NOT NULL, 
+        printer_ip TEXT, 
+        printer_port INTEGER DEFAULT 9100, 
+        printer_type TEXT DEFAULT 'driver',
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP, deleted_at TEXT
+    )`).run();
 
     // 9. SMS
-    db.prepare(`
-        CREATE TABLE IF NOT EXISTS sms_templates (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            type TEXT UNIQUE, 
-            title TEXT,
-            content TEXT, 
-            is_active INTEGER DEFAULT 1
-        )
-    `).run();
+    db.prepare(`CREATE TABLE IF NOT EXISTS sms_templates (
+        id TEXT PRIMARY KEY, 
+        type TEXT UNIQUE, 
+        title TEXT,
+        content TEXT, 
+        is_active INTEGER DEFAULT 1,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`).run();
 
-    db.prepare(`
-        CREATE TABLE IF NOT EXISTS sms_logs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, 
-            phone TEXT, 
-            message TEXT, 
-            status TEXT, 
-            date TEXT, 
-            type TEXT
-        )
-    `).run();
+    db.prepare(`CREATE TABLE IF NOT EXISTS sms_logs (
+        id TEXT PRIMARY KEY, 
+        phone TEXT, 
+        message TEXT, 
+        status TEXT, 
+        date TEXT, 
+        type TEXT,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`).run();
 
-    // 10. Litsenziya (YANGI) - REMOVED
-    // ...
+    // 11. SHIFTS
+    db.prepare(`CREATE TABLE IF NOT EXISTS shifts (
+        id TEXT PRIMARY KEY,
+        start_time TEXT NOT NULL,
+        end_time TEXT,
+        start_cash REAL DEFAULT 0,
+        end_cash REAL DEFAULT 0,
+        declared_cash REAL DEFAULT 0,
+        declared_card REAL DEFAULT 0,
+        difference_cash REAL DEFAULT 0,
+        difference_card REAL DEFAULT 0,
+        status TEXT DEFAULT 'open',
+        cashier_name TEXT,
+        total_sales REAL DEFAULT 0,
+        total_cash REAL DEFAULT 0,
+        total_card REAL DEFAULT 0,
+        total_transfer REAL DEFAULT 0,
+        server_id TEXT, restaurant_id TEXT, is_synced INTEGER DEFAULT 0, updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )`).run();
 
-    // 11. SHIFTS (Smena) - YANGI
-    db.prepare(`
-        CREATE TABLE IF NOT EXISTS shifts (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            start_time TEXT NOT NULL,
-            end_time TEXT,
-            start_cash REAL DEFAULT 0,
-            end_cash REAL DEFAULT 0,
-            declared_cash REAL DEFAULT 0, -- Haqiqiy sanalgan naqd
-            declared_card REAL DEFAULT 0, -- Haqiqiy terminal tushumi
-            difference_cash REAL DEFAULT 0, -- Tafovut
-            difference_card REAL DEFAULT 0, -- Tafovut
-            status TEXT DEFAULT 'open', -- 'open' | 'closed'
-            cashier_name TEXT,
-            total_sales REAL DEFAULT 0,
-            total_cash REAL DEFAULT 0,
-            total_card REAL DEFAULT 0,
-            total_transfer REAL DEFAULT 0
-        )
-    `).run();
+    // --- Indexes (Updated) ---
+    // Indexes need valid syntax. createV2Tables calls run multiple times.
+    const tablesList = ['tables', 'products', 'order_items', 'sales', 'sale_items', 'debt_history', 'customer_debts', 'customers'];
 
-    // --- INDEKSLAR ---
+    // Simple Index creations
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_tables_status ON tables(status)`).run();
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_tables_hall ON tables(hall_id)`).run();
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_products_cat ON products(category_id)`).run();
@@ -248,147 +256,320 @@ function initDB() {
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_sale_items_sale ON sale_items(sale_id)`).run();
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_debt_history_customer ON debt_history(customer_id)`).run();
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_customer_debts_status ON customer_debts(is_paid, due_date)`).run();
-
-    // --- YANGI PERFORMANCE INDEKSLAR ---
-    // Sales jadvalidagi tez-tez ishlatiladigan ustunlar
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_sales_payment ON sales(payment_method)`).run();
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_sales_waiter ON sales(waiter_name)`).run();
-
-    // Customers jadvali uchun qidiruv optimizatsiyasi
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_customers_phone ON customers(phone)`).run();
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_customers_type ON customers(type)`).run();
-
-    // Products jadvalidagi faol mahsulotlar uchun
     db.prepare(`CREATE INDEX IF NOT EXISTS idx_products_active ON products(is_active)`).run();
-    db.prepare(`CREATE INDEX IF NOT EXISTS idx_order_items_dest ON order_items(destination)`).run();
 
-    // Composite indekslar - bir nechta ustun bo'yicha qidiruv uchun
-    db.prepare(`CREATE INDEX IF NOT EXISTS idx_sales_date_method ON sales(date, payment_method)`).run();
-    db.prepare(`CREATE INDEX IF NOT EXISTS idx_customer_debts_paid_date ON customer_debts(is_paid, due_date)`).run();
-
-    console.log("✅ Performance indekslari tekshirildi va yaratildi.");
-
-    // --- MIGRATSIYALAR (Yangi ustunlarni qo'shish) ---
-
-    // 1. Users jadvali uchun
-    const userCols = db.prepare(`PRAGMA table_info(users)`).all();
-    if (!userCols.some(c => c.name === 'salt')) db.prepare(`ALTER TABLE users ADD COLUMN salt TEXT`).run();
-
-    // 2. Products jadvali uchun (XATOLIKNI TUZATUVCHI QISM)
-    const productCols = db.prepare("PRAGMA table_info(products)").all();
-    if (!productCols.some(c => c.name === 'destination')) {
-      db.prepare("ALTER TABLE products ADD COLUMN destination TEXT DEFAULT '1'").run();
-      console.log("✅ 'destination' ustuni products jadvaliga qo'shildi.");
-
-      // MUHIM: Eski mahsulotlar uchun default destination qo'yish
-      db.prepare("UPDATE products SET destination = '1' WHERE destination IS NULL").run();
-      console.log("🔄 Eski mahsulotlarga default destination biriktirildi.");
-    }
-    if (!productCols.some(c => c.name === 'is_active')) {
-      db.prepare("ALTER TABLE products ADD COLUMN is_active INTEGER DEFAULT 1").run();
-      console.log("✅ 'is_active' ustuni products jadvaliga qo'shildi.");
-    }
-
-    // 3. Customers jadvali uchun (MIGRATSIYA)
-    const customerCols = db.prepare("PRAGMA table_info(customers)").all();
-    if (!customerCols.some(c => c.name === 'type')) {
-      db.prepare("ALTER TABLE customers ADD COLUMN type TEXT DEFAULT 'standard'").run();
-      console.log("✅ 'type' ustuni customers jadvaliga qo'shildi.");
-    }
-    if (!customerCols.some(c => c.name === 'value')) {
-      db.prepare("ALTER TABLE customers ADD COLUMN value INTEGER DEFAULT 0").run();
-      console.log("✅ 'value' ustuni customers jadvaliga qo'shildi.");
-    }
-    if (!customerCols.some(c => c.name === 'balance')) {
-      db.prepare("ALTER TABLE customers ADD COLUMN balance REAL DEFAULT 0").run();
-      console.log("✅ 'balance' ustuni customers jadvaliga qo'shildi.");
-    }
-    if (!customerCols.some(c => c.name === 'birthday')) {
-      db.prepare("ALTER TABLE customers ADD COLUMN birthday TEXT").run();
-      console.log("✅ 'birthday' ustuni customers jadvaliga qo'shildi.");
-    }
-    if (!customerCols.some(c => c.name === 'notes')) {
-      db.prepare("ALTER TABLE customers ADD COLUMN notes TEXT").run();
-      console.log("✅ 'notes' ustuni customers jadvaliga qo'shildi.");
-    }
-
-    // 4. Sales jadvali uchun (SHIFT MIGRATSIYA)
-    const salesCols = db.prepare("PRAGMA table_info(sales)").all();
-    if (!salesCols.some(c => c.name === 'shift_id')) {
-      db.prepare("ALTER TABLE sales ADD COLUMN shift_id INTEGER DEFAULT 0").run();
-      console.log("✅ 'shift_id' ustuni sales jadvaliga qo'shildi.");
-    }
-
-    // 5. Shifts jadvali uchun (YANGI MIGRATSIYA)
-    const shiftCols = db.prepare("PRAGMA table_info(shifts)").all();
-    if (!shiftCols.some(c => c.name === 'declared_card')) {
-      db.prepare("ALTER TABLE shifts ADD COLUMN declared_card REAL DEFAULT 0").run();
-      db.prepare("ALTER TABLE shifts ADD COLUMN declared_cash REAL DEFAULT 0").run();
-      db.prepare("ALTER TABLE shifts ADD COLUMN difference_cash REAL DEFAULT 0").run();
-      db.prepare("ALTER TABLE shifts ADD COLUMN difference_card REAL DEFAULT 0").run();
-      console.log("✅ 'shifts' jadvaliga yangi ustunlar qo'shildi.");
-    }
-
-    // --- SEEDING: Default Admin yaratish ---
-    const adminUser = db.prepare("SELECT * FROM users WHERE role = 'admin'").get();
-    const { salt, hash } = hashPIN('0000');
-
-    if (!adminUser) {
-      db.prepare("INSERT INTO users (name, pin, role, salt) VALUES ('Admin', ?, 'admin', ?)").run(hash, salt);
-      console.log("✅ Yangi Admin yaratildi (PIN: 0000)");
-    } else {
-      db.prepare("UPDATE users SET pin = ?, salt = ? WHERE id = ?").run(hash, salt, adminUser.id);
-      console.log("♻️ Admin paroli 0000 ga qayta tiklandi.");
-    }
-
-    // --- YANGI: next_check_number sozlamasini yaratish ---
-    const checkNumberSetting = db.prepare("SELECT value FROM settings WHERE key = 'next_check_number'").get();
-    if (!checkNumberSetting) {
-      db.prepare("INSERT INTO settings (key, value) VALUES ('next_check_number', '1')").run();
-      console.log("✅ 'next_check_number' sozlamasi yaratildi (boshlang'ich qiymat: 1)");
-    }
-
-    // --- YANGI SEEDING: Default Oshxonalar yaratish ---
-    const kitchenCount = db.prepare('SELECT COUNT(*) as count FROM kitchens').get().count;
-    if (kitchenCount === 0) {
-      const insertKitchen = db.prepare('INSERT INTO kitchens (name, printer_ip, printer_type) VALUES (?, ?, ?)');
-
-      // Test uchun Microsoft Print to PDF
-      insertKitchen.run('Issiq Oshxona', 'Microsoft Print to PDF', 'driver');
-      insertKitchen.run('Bar', 'Microsoft Print to PDF', 'driver');
-      insertKitchen.run('Sovuq Oshxona', 'Microsoft Print to PDF', 'driver');
-
-      console.log("✅ Default oshxonalar yaratildi (Test: Microsoft Print to PDF)");
-      console.log("💡 Haqiqiy muhitda ularni sozlamalarda o'zgartiring!");
-    }
-
-    // --- YANGI: Eski mahsulotlarning destination qiymatini tekshirish ---
-    const nullDestProducts = db.prepare("SELECT COUNT(*) as count FROM products WHERE destination IS NULL OR destination = ''").get().count;
-    if (nullDestProducts > 0) {
-      // Birinchi oshxonani default qilish
-      const firstKitchen = db.prepare("SELECT id FROM kitchens ORDER BY id ASC LIMIT 1").get();
-      const defaultDestination = firstKitchen ? String(firstKitchen.id) : '1';
-
-      db.prepare(`UPDATE products SET destination = ? WHERE destination IS NULL OR destination = ''`).run(defaultDestination);
-      console.log(`🔄 ${nullDestProducts} ta mahsulotga default destination (${defaultDestination}) biriktirildi.`);
-    }
-
-    // Default SMS Shablonlari
-    const templateCount = db.prepare('SELECT count(*) as count FROM sms_templates').get().count;
-    if (templateCount === 0) {
-      const insert = db.prepare('INSERT INTO sms_templates (type, title, content) VALUES (?, ?, ?)');
-      insert.run('debt_reminder', 'Qarz Eslatmasi', 'Hurmatli {name}, sizning {amount} so\'m qarzingiz muddati keldi. Iltimos, to\'lovni amalga oshiring.');
-      insert.run('new_menu', 'Yangi Menyular', 'Assalomu alaykum {name}! Bizda yangi ajoyib taomlar bor. Tatib ko\'rishga taklif qilamiz!');
-      insert.run('birthday', 'Tug\'ilgan Kun', 'Hurmatli {name}, tug\'ilgan kuningiz bilan tabriklaymiz! Siz uchun bugun maxsus chegirmamiz bor.');
-      console.log("✅ SMS shablonlari yaratildi.");
-    }
-
-    log.info("Bazalar tekshirildi va yuklandi.");
-
-  } catch (err) {
-    log.error("Baza yaratishda xatolik:", err);
-    console.error("Baza xatosi:", err);
-  }
+    // Performance Sync Indexes
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_sales_sync ON sales(is_synced)`).run();
+    db.prepare(`CREATE INDEX IF NOT EXISTS idx_products_sync ON products(is_synced)`).run();
 }
 
-module.exports = { db, initDB, onChange, notify, hashPIN };
+// --- MIGRATION LOGIC (V1 -> V2) ---
+function migrateToV2() {
+    console.log("-----------------------------------------");
+    console.log("🚀 MIGRATION START: V1 (Integer) -> V2 (UUID)");
+
+    const migTransaction = db.transaction(() => {
+        const tables = [
+            'halls', 'categories', 'kitchens', 'users', 'customers', 'shifts',
+            'tables', 'products', 'sales', 'sale_items',
+            'order_items', 'debt_history', 'customer_debts',
+            'cancelled_orders', 'sms_templates', 'sms_logs'
+        ];
+
+        // 1. Rename and Map
+        for (const table of tables) {
+            const exists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='${table}'`).get();
+            if (exists) {
+                console.log(`Processing table: ${table}`);
+                db.prepare(`ALTER TABLE ${table} RENAME TO ${table}_old`).run();
+                db.prepare(`CREATE TABLE _map_${table} (old_id INTEGER PRIMARY KEY, new_id TEXT)`).run();
+            }
+        }
+
+        // 2. Create New Tables
+        createV2Tables();
+
+        // 3. Migrate Data
+        // Helper to get new ID
+        const getNewId = (table, oldId) => {
+            if (!oldId) return null;
+            try {
+                const res = db.prepare(`SELECT new_id FROM _map_${table} WHERE old_id = ?`).get(oldId);
+                return res ? res.new_id : null;
+            } catch (e) {
+                // Map table might not exist if source table was missing
+                return null;
+            }
+        };
+
+        // Helper to safely migrate data if table exists
+        const migrateIfExists = (table, callback) => {
+            const exists = db.prepare(`SELECT name FROM sqlite_master WHERE type='table' AND name='${table}_old'`).get();
+            if (exists) {
+                const rows = db.prepare(`SELECT * FROM ${table}_old`).all();
+                if (rows.length > 0) callback(rows);
+            }
+        };
+
+        // --- PHASE 1: Independent Tables ---
+        const simpleMigrate = (table) => {
+            migrateIfExists(table, (rows) => {
+                const insertMap = db.prepare(`INSERT INTO _map_${table} (old_id, new_id) VALUES (?, ?)`);
+                for (const row of rows) {
+                    insertMap.run(row.id, uuidv4());
+                }
+                console.log(`Migrated IDs for ${table}: ${rows.length} records`);
+            });
+        };
+
+        ['halls', 'categories', 'kitchens', 'users', 'customers', 'shifts', 'sms_templates', 'sms_logs'].forEach(simpleMigrate);
+
+        // Copy Data for Simple Tables (with mapped IDs)
+
+        // -> Users
+        migrateIfExists('users', (rows) => {
+            rows.forEach(r => {
+                const newId = getNewId('users', r.id);
+                db.prepare(`INSERT INTO users (id, name, pin, role, salt, restaurant_id) VALUES (?, ?, ?, ?, ?, ?)`).run(newId, r.name, r.pin, r.role, r.salt, RESTAURANT_ID);
+            });
+        });
+
+        // -> Kitchens
+        migrateIfExists('kitchens', (rows) => {
+            rows.forEach(r => {
+                const newId = getNewId('kitchens', r.id);
+                db.prepare(`INSERT INTO kitchens (id, name, printer_ip, printer_port, printer_type, restaurant_id) VALUES (?, ?, ?, ?, ?, ?)`).run(newId, r.name, r.printer_ip, r.printer_port || 9100, r.printer_type || 'driver', RESTAURANT_ID);
+            });
+        });
+
+        // -> Categories
+        migrateIfExists('categories', (rows) => {
+            rows.forEach(r => {
+                const newId = getNewId('categories', r.id);
+                db.prepare(`INSERT INTO categories (id, name, restaurant_id) VALUES (?, ?, ?)`).run(newId, r.name, RESTAURANT_ID);
+            });
+        });
+
+        // -> Halls
+        migrateIfExists('halls', (rows) => {
+            rows.forEach(r => {
+                const newId = getNewId('halls', r.id);
+                db.prepare(`INSERT INTO halls (id, name, restaurant_id) VALUES (?, ?, ?)`).run(newId, r.name, RESTAURANT_ID);
+            });
+        });
+
+        // -> Customers
+        migrateIfExists('customers', (rows) => {
+            rows.forEach(r => {
+                const newId = getNewId('customers', r.id);
+                db.prepare(`INSERT INTO customers (id, name, phone, debt, notes, type, value, balance, birthday, restaurant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(newId, r.name, r.phone, r.debt, r.notes, r.type || 'standard', r.value || 0, r.balance || 0, r.birthday, RESTAURANT_ID);
+            });
+        });
+
+        // -> SMS Templates
+        migrateIfExists('sms_templates', (rows) => {
+            rows.forEach(r => {
+                const newId = getNewId('sms_templates', r.id);
+                db.prepare(`INSERT INTO sms_templates (id, type, title, content, is_active, restaurant_id) VALUES (?, ?, ?, ?, ?, ?)`).run(newId, r.type, r.title, r.content, r.is_active, RESTAURANT_ID);
+            });
+        });
+
+        // -> Shifts
+        migrateIfExists('shifts', (rows) => {
+            rows.forEach(r => {
+                const newId = getNewId('shifts', r.id);
+                db.prepare(`INSERT INTO shifts (id, start_time, end_time, start_cash, end_cash, declared_cash, declared_card, difference_cash, difference_card, status, cashier_name, total_sales, total_cash, total_card, total_transfer, restaurant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                    newId, r.start_time, r.end_time, r.start_cash, r.end_cash,
+                    r.declared_cash || 0, r.declared_card || 0, r.difference_cash || 0, r.difference_card || 0,
+                    r.status, r.cashier_name, r.total_sales, r.total_cash, r.total_card, r.total_transfer, RESTAURANT_ID
+                );
+            });
+        });
+
+        // --- PHASE 2: Dependent Tables ---
+
+        // -> Tables
+        migrateIfExists('tables', (rows) => {
+            rows.forEach(r => {
+                const newId = uuidv4();
+                db.prepare(`INSERT INTO _map_tables (old_id, new_id) VALUES (?, ?)`).run(r.id, newId);
+
+                const hallId = getNewId('halls', r.hall_id);
+                const waiterId = r.waiter_id && r.waiter_id !== 0 ? getNewId('users', r.waiter_id) : null;
+
+                db.prepare(`INSERT INTO tables (id, hall_id, name, status, start_time, total_amount, current_check_number, waiter_id, waiter_name, guests, restaurant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                    newId, hallId, r.name, r.status, r.start_time, r.total_amount, r.current_check_number, waiterId, r.waiter_name, r.guests, RESTAURANT_ID
+                );
+            });
+        });
+
+        // -> Products
+        migrateIfExists('products', (rows) => {
+            rows.forEach(r => {
+                const newId = uuidv4();
+                db.prepare(`INSERT INTO _map_products (old_id, new_id) VALUES (?, ?)`).run(r.id, newId);
+
+                const catId = getNewId('categories', r.category_id);
+                let destId = '1';
+                if (r.destination) {
+                    const kid = parseInt(r.destination);
+                    if (!isNaN(kid)) {
+                        const kNew = getNewId('kitchens', kid);
+                        if (kNew) destId = kNew;
+                    }
+                }
+
+                db.prepare(`INSERT INTO products (id, category_id, name, price, destination, is_active, restaurant_id) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+                    newId, catId, r.name, r.price, destId, r.is_active, RESTAURANT_ID
+                );
+            });
+        });
+
+        // -> Sales
+        migrateIfExists('sales', (rows) => {
+            rows.forEach(r => {
+                const newId = uuidv4();
+                db.prepare(`INSERT INTO _map_sales (old_id, new_id) VALUES (?, ?)`).run(r.id, newId);
+
+                const custId = r.customer_id ? getNewId('customers', r.customer_id) : null;
+                const shiftId = r.shift_id ? getNewId('shifts', r.shift_id) : null;
+
+                db.prepare(`INSERT INTO sales (id, check_number, date, total_amount, subtotal, discount, payment_method, customer_id, waiter_name, guest_count, items_json, shift_id, restaurant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                    newId, r.check_number, r.date, r.total_amount, r.subtotal, r.discount, r.payment_method, custId, r.waiter_name, r.guest_count, r.items_json, shiftId, RESTAURANT_ID
+                );
+            });
+        });
+
+        // --- PHASE 3: Deep Dependencies ---
+
+        // -> Order Items
+        migrateIfExists('order_items', (rows) => {
+            rows.forEach(r => {
+                const tableId = getNewId('tables', r.table_id);
+                if (tableId) {
+                    db.prepare(`INSERT INTO order_items (id, table_id, product_name, price, quantity, destination, restaurant_id) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+                        uuidv4(), tableId, r.product_name, r.price, r.quantity, r.destination, RESTAURANT_ID
+                    );
+                }
+            });
+        });
+
+        // -> Sale Items
+        migrateIfExists('sale_items', (rows) => {
+            rows.forEach(r => {
+                const saleId = getNewId('sales', r.sale_id);
+                if (saleId) {
+                    db.prepare(`INSERT INTO sale_items (id, sale_id, product_name, category_name, price, quantity, total_price, date, restaurant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                        uuidv4(), saleId, r.product_name, r.category_name, r.price, r.quantity, r.total_price, r.date, RESTAURANT_ID
+                    );
+                }
+            });
+        });
+
+        // -> Debt History
+        migrateIfExists('debt_history', (rows) => {
+            rows.forEach(r => {
+                const custId = getNewId('customers', r.customer_id);
+                if (custId) {
+                    db.prepare(`INSERT INTO debt_history (id, customer_id, amount, type, date, comment, restaurant_id) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(
+                        uuidv4(), custId, r.amount, r.type, r.date, r.comment, RESTAURANT_ID
+                    );
+                }
+            });
+        });
+
+        // -> Customer Debts
+        migrateIfExists('customer_debts', (rows) => {
+            rows.forEach(r => {
+                const custId = getNewId('customers', r.customer_id);
+                if (custId) {
+                    db.prepare(`INSERT INTO customer_debts (id, customer_id, amount, due_date, last_sms_date, is_paid, created_at, restaurant_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                        uuidv4(), custId, r.amount, r.due_date, r.last_sms_date, r.is_paid, r.created_at, RESTAURANT_ID
+                    );
+                }
+            });
+        });
+
+        console.log("✅ Data Migration Completed.");
+
+        // Clean up _map tables? (Optional, kept usually for safety)
+        // db.prepare(`DROP TABLE ...`).run();
+    });
+
+    try {
+        migTransaction();
+        db.pragma('user_version = 2');
+        console.log("🎉 MIGRATION SUCCESSFUL! DB is now V2 (UUID).");
+    } catch (e) {
+        console.error("❌ MIGRATION FAILED. Transactions rolled back.");
+        console.error(e);
+        throw e;
+    }
+}
+
+// --- INITIALIZATION ---
+function initDB() {
+    try {
+        const userVersion = db.pragma('user_version', { simple: true });
+        console.log(`ℹ️ Current DB Version: ${userVersion}`);
+
+        if (userVersion < 2) {
+            // Check if we have V1 tables (e.g., 'users' exists and has INT id?)
+            // Simplest check: does 'users' table exist?
+            const tableExists = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='users'").get();
+
+            if (tableExists) {
+                // Determine if it is V1 (INT) or V2 (UUID) but version was not set (unlikely)
+                // We assume if version < 2 and table exists, it is legacy V1.
+                migrateToV2();
+            } else {
+                console.log("✨ Fresh Install detected. Creating V2 tables directly.");
+                createV2Tables();
+                seedDefaults();
+                db.pragma('user_version = 2');
+            }
+        } else {
+            console.log("✅ DB is up to date (V2). Verifying tables...");
+            createV2Tables(); // Idempotent check
+        }
+
+        // --- Foreign Keys Enable (After migration) ---
+        db.pragma('foreign_keys = ON');
+
+    } catch (err) {
+        log.error("InitDB Error:", err);
+        console.error(err);
+    }
+}
+
+function seedDefaults() {
+    // Admin
+    const adminExists = db.prepare("SELECT * FROM users WHERE role = 'admin'").get();
+    if (!adminExists) {
+        const { salt, hash } = hashPIN('0000');
+        db.prepare("INSERT INTO users (id, name, pin, role, salt, restaurant_id) VALUES (?, 'Admin', ?, 'admin', ?, ?)").run(uuidv4(), hash, salt, RESTAURANT_ID);
+        console.log("✅ Default Admin created: PIN 0000");
+    }
+
+    // Settings
+    const nextCheck = db.prepare("SELECT value FROM settings WHERE key = 'next_check_number'").get();
+    if (!nextCheck) {
+        db.prepare("INSERT INTO settings (key, value) VALUES ('next_check_number', '1')").run();
+    }
+
+    // Default Kitchens
+    const kCount = db.prepare("SELECT count(*) as count FROM kitchens").get().count;
+    if (kCount === 0) {
+        const insertK = db.prepare("INSERT INTO kitchens (id, name, printer_ip, printer_type, restaurant_id) VALUES (?, ?, ?, ?, ?)");
+        insertK.run(uuidv4(), 'Issiq Oshxona', 'Microsoft Print to PDF', 'driver', RESTAURANT_ID);
+        insertK.run(uuidv4(), 'Bar', 'Microsoft Print to PDF', 'driver', RESTAURANT_ID);
+        insertK.run(uuidv4(), 'Sovuq Oshxona', 'Microsoft Print to PDF', 'driver', RESTAURANT_ID);
+        console.log("✅ Default Kitchens created.");
+    }
+}
+
+module.exports = { db, initDB, onChange, notify, hashPIN, uuidv4, RESTAURANT_ID };

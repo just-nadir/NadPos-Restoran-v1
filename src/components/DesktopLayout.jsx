@@ -32,6 +32,8 @@ const DesktopLayout = () => {
   const [selectedTable, setSelectedTable] = useState(null);
   const [showShiftModal, setShowShiftModal] = useState(false); // Smena yopish modali uchun
 
+  const [syncStatus, setSyncStatus] = useState({ status: 'offline', lastSync: null });
+
   // Printer xatolarini global eshitish
   useIpcListener('db-change', (event, data) => {
     if (data.type === 'printer-error') {
@@ -39,11 +41,16 @@ const DesktopLayout = () => {
     }
   });
 
+  useIpcListener('sync-status', (event, data) => {
+    setSyncStatus(data);
+  });
+
   if (loading) {
     return <div className="flex h-screen items-center justify-center text-gray-500 font-bold bg-gray-100">Tizim yuklanmoqda...</div>;
   }
 
-  // YANGI: Litsenziya tekshiruvi
+  // YANGI: Litsenziya tekshiruvi (PAUSED)
+  /*
   if (!license.active && license.checked) {
     return (
       <LicenseLock
@@ -54,6 +61,7 @@ const DesktopLayout = () => {
       />
     );
   }
+  */
 
   if (!user) {
     return <PinLogin />;
@@ -145,6 +153,7 @@ const DesktopLayout = () => {
         onLogout={handleLogout}
         user={user}
         onCloseShift={() => setShowShiftModal(true)} // YANGI
+        syncStatus={syncStatus}
       />
 
       {renderShiftModal()}

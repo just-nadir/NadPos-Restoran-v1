@@ -92,8 +92,8 @@ async function printHtml(htmlContent, printerName) {
             deviceName: printerName
         };
 
-        if (!printerName) {
-            console.warn("⚠️ Printer nomi ko'rsatilmagan, default printer ishlatiladi.");
+        if (!printerName || printerName.trim() === '') {
+            console.warn("⚠️ Printer nomi ko'rsatilmagan yoki bo'sh, default printer ishlatiladi.");
             delete options.deviceName;
         } else {
             console.log(`🖨 Chop etilmoqda (HTML): ${printerName}`);
