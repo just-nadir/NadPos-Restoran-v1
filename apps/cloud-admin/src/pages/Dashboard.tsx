@@ -6,7 +6,7 @@ import api from '../lib/api';
 interface Restaurant {
     id: string;
     name: string;
-    licenseKey: string;
+    accessKey: string;
 }
 
 const Dashboard: React.FC = () => {
@@ -83,7 +83,7 @@ const Dashboard: React.FC = () => {
                                                     ID: {res.id}
                                                 </p>
                                                 <p className="flex items-center text-xs text-gray-400 mt-1">
-                                                    Key: {res.licenseKey}
+                                                    Key: {res.accessKey}
                                                 </p>
                                             </div>
                                         </div>

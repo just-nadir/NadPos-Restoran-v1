@@ -12,6 +12,20 @@ const TABLES = [
     'customers', 'sales', 'sale_items', 'shifts', 'settings', 'sms_templates', 'sms_logs'
 ];
 
+const TABLE_SCHEMAS = {};
+
+function loadSchemas() {
+    for (const table of TABLES) {
+        try {
+            const cols = db.prepare(`PRAGMA table_info("${table}")`).all();
+            TABLE_SCHEMAS[table] = new Set(cols.map(c => c.name));
+            // console.log(`Loaded schema for ${table}:`, TABLE_SCHEMAS[table]);
+        } catch (e) {
+            console.error(`Schema load failed for ${table}`, e);
+        }
+    }
+}
+
 let mainWindow = null;
 
 function setMainWindow(win) {
@@ -124,7 +138,9 @@ function markAsSynced(tablesData) {
 let heartbeatCounter = 0;
 
 function startSyncService() {
+    loadSchemas();
     console.log("🔄 Sync Service Started...");
+
     setInterval(async () => {
         if (isSyncing) return;
         isSyncing = true;
@@ -205,56 +221,49 @@ function applyChanges(tablesData) {
             // Skip invalid tables
             if (!TABLES.includes(table)) continue;
 
+            const validColumns = TABLE_SCHEMAS[table];
+
             for (const row of rows) {
-                // Remove server-specific fields not in local schema if any (e.g. deleted_at might be handled differently, but schema matches mostly)
-                // Local schema: id, ..., is_synced.
-                // Server schema: id, ..., deleted_at.
-
-                // We must ensure 'is_synced' = 1 for these records
+                // Ensure is_synced = 1
                 const record = { ...row, is_synced: 1 };
+                const cleanRecord = {};
 
-                // Remove fields that might cause issues or generate dynamically
-                // server_id is local only, but server doesn't send it. 
-                // restaurant_id is in schema.
+                // Filter columns and stringify objects
+                for (const [key, val] of Object.entries(record)) {
+                    if (validColumns && !validColumns.has(key)) continue; // Skip extra fields
 
-                // Construct INSERT OR REPLACE
-                // We need to know columns. 
-                // Simplest way: use dynamic columns from the row keys that exist in DB.
-                // But safer to assume row keys match columns.
+                    if (val && typeof val === 'object') {
+                        cleanRecord[key] = JSON.stringify(val); // Convert objects/arrays to string
+                    } else {
+                        cleanRecord[key] = val;
+                    }
+                }
 
-                const columns = Object.keys(record);
-                const placeholders = columns.map(() => '?').join(',');
-                const setClause = columns.map(c => `${c}=excluded.${c}`).join(',');
+                if (Object.keys(cleanRecord).length === 0) continue;
 
-                // We need to filter keys that actually exist in local DB? 
-                // Assuming sync guarantees schema match. 
-                // EXCEPT: 'is_synced' is local. 'record' has it.
-                // 'server_id' is local. Server doesn't send it.
-                // 'deleted_at' is both.
+                // Prepare SQL
+                const columns = Object.keys(cleanRecord); // only valid columns
+                const cols = columns.map(k => `"${k}"`).join(',');
+                const vals = columns.map(k => `@${k}`).join(',');
+                const updateClause = columns.map(k => `"${k}"=@${k}`).join(',');
 
-                // Clean record for Settings table 
                 if (table === 'settings') {
-                    // Settings PK is key.
-                    db.prepare(`INSERT INTO settings (key, value, updated_at, is_synced) VALUES (@key, @value, @updated_at, 1) 
-                        ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, is_synced=1`).run(record);
+                    try {
+                        db.prepare(`INSERT INTO settings (key, value, updated_at, is_synced) VALUES (@key, @value, @updated_at, 1) 
+                            ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at, is_synced=1`).run(cleanRecord);
+                    } catch (err) {
+                        console.error(`Failed to sync settings`, err);
+                    }
                 } else {
-                    // Generic table PK is id.
-                    // Filter out keys not in valid payload? 
-                    // For now trust the payload matches.
-
-                    // Use better-sqlite3 named parameters helper if possible, or dynamic
-                    // INSERT OR REPLACE INTO table (col1, col2) VALUES (@col1, @col2)
-                    const cols = Object.keys(record).map(k => `"${k}"`).join(',');
-                    const vals = Object.keys(record).map(k => `@${k}`).join(',');
-
                     try {
                         db.prepare(`INSERT INTO "${table}" (${cols}) VALUES (${vals}) 
-                            ON CONFLICT(id) DO UPDATE SET ${Object.keys(record).map(k => `"${k}"=@${k}`).join(',')}`).run(record);
+                            ON CONFLICT(id) DO UPDATE SET ${updateClause}`).run(cleanRecord);
                     } catch (err) {
                         console.error(`Failed to apply sync for ${table} ${row.id}`, err);
                     }
                 }
             }
+
         }
     })();
 }

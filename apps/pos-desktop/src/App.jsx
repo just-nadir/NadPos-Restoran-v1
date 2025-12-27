@@ -14,7 +14,15 @@ function App() {
 
   useEffect(() => {
     const checkConfig = async () => {
+      // Agar Electron bo'lmasa (Browser), konfiguratsiyani o'tkazib yuboramiz
+      if (!window.electron) {
+        setIsConfigured(true);
+        setConfigChecked(true);
+        return;
+      }
+
       try {
+
         const settings = await window.electron.ipcRenderer.invoke('get-settings');
         if (settings && settings.restaurant_id && settings.access_key) {
           setIsConfigured(true);

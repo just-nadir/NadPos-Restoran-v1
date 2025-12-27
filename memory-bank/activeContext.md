@@ -11,6 +11,12 @@ Hozirda asosiy e'tibor tizimning barqarorligini ta'minlash, VPS serverda ishlash
     -   `WaiterApp` dagi eski litsenziya kodi olib tashlandi.
     -   `SyncService` va POS ulanishi `https://halboldi.uz/api` ga o'tkazildi.
     -   Admin Dashboard API manzili to'g'irlandi.
+    -   **Fix**: Admin Dashboard restoranlar ro'yxatida `key` ko'rinmaslik muammosi hal qilindi (`licenseKey` -> `accessKey`).
+    -   **Waiter App**: Brauzerda ochilganda Onboarding ekranini avtomatik o'tkazib yuborish qo'shildi (`window.electron` tekshiruvi).
+    -   **Sync Fix**: SQLite ga yozishda "Binding" xatosi tuzatildi (Obyektlarni tozalash va Stringga o'girish).
+
+
+
 
 ## Keyingi Qadamlar
 1.  **Monitoring**: Tizimning VPS dagi ishlashini kuzatish.

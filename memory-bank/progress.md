@@ -9,6 +9,12 @@
 -   [x] **POS Onboarding**: Dasturga kirishda Restoran ID va Key so'rash tizimi yaratildi.
 -   [x] **VPS Deploy**: Tizim `213.142.148.35` serveriga joylandi (`halboldi.uz`).
 -   [x] **Sinxronizatsiya**: POS va Cloud o'rtasida xavfsiz (`x-access-key`) aloqa o'rnatildi.
+-   [x] **Bug Fix**: Admin Panel Dashboard da restoran kaliti ko'rinishi tuzatildi.
+-   [x] **Improvement**: Waiter App brauzerda ochilganda "Restoran ID" so'ramasligi tuzatildi.
+-   [x] **Stabilizatsiya**: Sync Service endi SQLite xatolariga chidamli (Binding error fixed).
+
+
+
 
 ## Rejalashtirilgan Ishlar
 -   [ ] **Lokalizatsiya**: O'zbek tili tarjimalarini to'ldirish (agar kamchiliklar bo'lsa).
