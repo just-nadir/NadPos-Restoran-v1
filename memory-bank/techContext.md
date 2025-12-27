@@ -12,7 +12,7 @@
 -   **Language**: JavaScript / TypeScript.
 -   **Runtime**: Electron (`^33.2.1`).
 -   **Framework**: React (Vite).
--   **Local DB**: better-sqlite3 (v2 schema).
+-   **Local DB**: better-sqlite3 (v2 schema, UUIDs, Soft Delete supported).
 -   **HTTP Client**: Axios & Fetch.
 
 ### Cloud Admin

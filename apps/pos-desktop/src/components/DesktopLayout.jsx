@@ -27,7 +27,7 @@ const PageLoader = () => (
 );
 
 const DesktopLayout = () => {
-  const { user, logout, loading, toast, showToast, license, checkLicense, shift, checkShift } = useGlobal(); // shift, checkShift qo'shildi
+  const { user, logout, loading, toast, showToast, shift, checkShift } = useGlobal(); // shift, checkShift qo'shildi
   const [activePage, setActivePage] = useState('pos');
   const [selectedTable, setSelectedTable] = useState(null);
   const [showShiftModal, setShowShiftModal] = useState(false); // Smena yopish modali uchun

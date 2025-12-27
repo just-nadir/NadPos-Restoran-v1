@@ -13,4 +13,3 @@
 -   **POS Desktop**: Kassir va ofitsiantlar uchun asosiy ish quroli.
 -   **Cloud Server**: Markaziy ma'lumotlar bazasi va API.
 -   **Cloud Admin**: Tizimni boshqarish paneli.
--   **License Manager**: Litsenziyalarni boshqarish (Olib tashlanishi rejalashtirilgan).

@@ -2,17 +2,17 @@ const { db, notify } = require('../database.cjs');
 const crypto = require('crypto');
 
 module.exports = {
-  getCustomers: () => db.prepare('SELECT * FROM customers').all(),
+  getCustomers: () => db.prepare('SELECT * FROM customers WHERE deleted_at IS NULL').all(),
 
   addCustomer: (c) => {
     const id = crypto.randomUUID();
-    const res = db.prepare('INSERT INTO customers (id, name, phone, type, value, balance, birthday, debt) VALUES (?, ?, ?, ?, ?, ?, ?, 0)').run(id, c.name, c.phone, c.type, c.value, 0, c.birthday);
+    const res = db.prepare('INSERT INTO customers (id, name, phone, type, value, balance, birthday, debt, is_synced) VALUES (?, ?, ?, ?, ?, ?, ?, 0, 0)').run(id, c.name, c.phone, c.type, c.value, 0, c.birthday);
     notify('customers', null);
     return res;
   },
 
   deleteCustomer: (id) => {
-    const res = db.prepare('DELETE FROM customers WHERE id = ?').run(id);
+    const res = db.prepare("UPDATE customers SET deleted_at = ?, is_synced = 0 WHERE id = ?").run(new Date().toISOString(), id);
     notify('customers', null);
     return res;
   },
@@ -24,7 +24,7 @@ module.exports = {
               MIN(CASE WHEN cd.is_paid = 0 THEN cd.due_date ELSE NULL END) as next_due_date
           FROM customers c
           LEFT JOIN customer_debts cd ON c.id = cd.customer_id
-          WHERE c.debt > 0
+          WHERE c.debt > 0 AND c.deleted_at IS NULL
           GROUP BY c.id
       `;
     return db.prepare(query).all();
@@ -35,8 +35,8 @@ module.exports = {
   payDebt: (customerId, amount, comment) => {
     const date = new Date().toISOString();
     const updateDebt = db.transaction(() => {
-      db.prepare('UPDATE customers SET debt = debt - ? WHERE id = ?').run(amount, customerId);
-      db.prepare('INSERT INTO debt_history (id, customer_id, amount, type, date, comment) VALUES (?, ?, ?, ?, ?, ?)').run(crypto.randomUUID(), customerId, amount, 'payment', date, comment);
+      db.prepare('UPDATE customers SET debt = debt - ?, is_synced = 0 WHERE id = ?').run(amount, customerId);
+      db.prepare('INSERT INTO debt_history (id, customer_id, amount, type, date, comment, is_synced) VALUES (?, ?, ?, ?, ?, ?, 0)').run(crypto.randomUUID(), customerId, amount, 'payment', date, comment);
     });
     const res = updateDebt();
     notify('customers', null);

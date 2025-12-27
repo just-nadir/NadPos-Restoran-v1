@@ -78,7 +78,20 @@ export class SyncService {
         const { restaurantId, lastSyncTime } = query;
         const result = {};
 
-        const tables = ['users', 'products', 'categories', 'tables', 'halls', 'sales', 'sale_items', 'customers'];
+        const tables = [
+            'users',
+            'products',
+            'categories',
+            'tables',
+            'halls',
+            'sales',
+            'sale_items',
+            'customers',
+            'settings',
+            'kitchens',
+            'shifts',
+            'sms_templates'
+        ];
 
         for (const table of tables) {
             const sql = `

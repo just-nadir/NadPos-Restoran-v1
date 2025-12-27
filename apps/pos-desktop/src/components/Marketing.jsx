@@ -19,6 +19,7 @@ const Marketing = () => {
     if (!window.electron) return;
     const { ipcRenderer } = window.electron;
 
+    setLoading(true);
     try {
       if (activeTab === 'templates') {
         const data = await ipcRenderer.invoke('get-sms-templates');
@@ -39,6 +40,8 @@ const Marketing = () => {
     } catch (error) {
       console.error("Yuklashda xatolik:", error);
       showToast('error', 'Ma\'lumotlarni yuklashda xatolik bo\'ldi');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -68,7 +71,7 @@ const Marketing = () => {
   const handleSendBulk = async () => {
     if (!bulkMessage) return showToast('error', 'Xabar matnini kiriting');
     if (!window.electron) return;
-    
+
     setLoading(true);
     try {
       const res = await window.electron.ipcRenderer.invoke('send-mass-sms', { message: bulkMessage, filter: 'all' });
@@ -86,7 +89,7 @@ const Marketing = () => {
       {/* Sidebar Tabs */}
       <div className="w-64 bg-white border-r p-4 flex flex-col gap-2">
         <h2 className="text-xl font-bold mb-4 text-gray-800">SMS Marketing</h2>
-        
+
         <button onClick={() => setActiveTab('templates')} className={`p-3 rounded-lg text-left flex items-center gap-3 ${activeTab === 'templates' ? 'bg-blue-50 text-blue-600' : 'hover:bg-gray-50'}`}>
           <FileText size={20} /> Shablonlar
         </button>
@@ -103,23 +106,24 @@ const Marketing = () => {
 
       {/* Content */}
       <div className="flex-1 p-8 overflow-y-auto">
-        
+
         {/* SHABLONLAR */}
         {activeTab === 'templates' && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {templates.length === 0 && <p className="text-gray-400 col-span-2 text-center">Shablonlar yuklanmoqda...</p>}
-            
+            {loading && <p className="text-gray-400 col-span-2 text-center">Shablonlar yuklanmoqda...</p>}
+            {!loading && templates.length === 0 && <p className="text-gray-400 col-span-2 text-center">Shablonlar topilmadi</p>}
+
             {templates.map(t => (
               <div key={t.type} className="bg-white p-6 rounded-xl shadow-sm border">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold text-lg text-gray-700">{t.title}</h3>
                   {/* Checkbox olib tashlandi, endi faqat nom va matn */}
                 </div>
-                <textarea 
+                <textarea
                   className="w-full p-3 border rounded-lg h-32 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
                   value={t.content}
                   onChange={(e) => {
-                    const newTemplates = templates.map(temp => temp.type === t.type ? {...temp, content: e.target.value} : temp);
+                    const newTemplates = templates.map(temp => temp.type === t.type ? { ...temp, content: e.target.value } : temp);
                     setTemplates(newTemplates);
                   }}
                 />
@@ -127,7 +131,7 @@ const Marketing = () => {
                   <span className="text-xs text-gray-400">
                     O'zgaruvchilar: {t.type === 'debt_reminder' ? '{name}, {amount}' : '{name}'}
                   </span>
-                  <button 
+                  <button
                     onClick={() => handleSaveTemplate(templates.find(temp => temp.type === t.type))}
                     className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors"
                   >
@@ -146,22 +150,22 @@ const Marketing = () => {
             <div className="mb-4 p-4 bg-blue-50 text-blue-700 rounded-lg text-sm">
               Diqqat! Bu xabar bazadagi barcha raqami bor mijozlarga yuboriladi.
             </div>
-            
+
             <label className="block text-sm font-medium text-gray-700 mb-2">Xabar matni</label>
-            <textarea 
+            <textarea
               className="w-full p-4 border rounded-lg h-40 focus:ring-2 focus:ring-blue-500 outline-none mb-4"
               placeholder="Masalan: Bizda yangi menyu! Marhamat qilib tashrif buyuring..."
               value={bulkMessage}
               onChange={(e) => setBulkMessage(e.target.value)}
             />
-            
-            <button 
+
+            <button
               onClick={handleSendBulk}
               disabled={loading}
               className={`w-full py-3 rounded-lg font-bold text-white flex items-center justify-center gap-2
                 ${loading ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700'}`}
             >
-              {loading ? <RefreshCw className="animate-spin" /> : <Send />} 
+              {loading ? <RefreshCw className="animate-spin" /> : <Send />}
               {loading ? 'Yuborilmoqda...' : 'Barchaga Yuborish'}
             </button>
           </div>
@@ -198,9 +202,9 @@ const Marketing = () => {
                   </tr>
                 ))}
                 {logs.length === 0 && (
-                    <tr>
-                        <td colSpan="5" className="p-8 text-center text-gray-400">Tarix bo'sh</td>
-                    </tr>
+                  <tr>
+                    <td colSpan="5" className="p-8 text-center text-gray-400">Tarix bo'sh</td>
+                  </tr>
                 )}
               </tbody>
             </table>
@@ -213,38 +217,38 @@ const Marketing = () => {
             <h3 className="text-xl font-bold mb-6 flex items-center gap-2">
               <Settings className="text-gray-400" /> Eskiz.uz Sozlamalari
             </h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
-                <input 
-                  type="email" 
+                <input
+                  type="email"
                   value={settings.eskiz_email}
-                  onChange={(e) => setSettings({...settings, eskiz_email: e.target.value})}
+                  onChange={(e) => setSettings({ ...settings, eskiz_email: e.target.value })}
                   className="w-full p-3 border rounded-lg outline-none focus:border-blue-500"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Parol</label>
-                <input 
-                  type="password" 
+                <input
+                  type="password"
                   value={settings.eskiz_password}
-                  onChange={(e) => setSettings({...settings, eskiz_password: e.target.value})}
+                  onChange={(e) => setSettings({ ...settings, eskiz_password: e.target.value })}
                   className="w-full p-3 border rounded-lg outline-none focus:border-blue-500"
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nickname (From)</label>
-                <input 
-                  type="text" 
+                <input
+                  type="text"
                   value={settings.eskiz_nickname}
-                  onChange={(e) => setSettings({...settings, eskiz_nickname: e.target.value})}
+                  onChange={(e) => setSettings({ ...settings, eskiz_nickname: e.target.value })}
                   className="w-full p-3 border rounded-lg outline-none focus:border-blue-500"
                   placeholder="4546"
                 />
               </div>
-              
-              <button 
+
+              <button
                 onClick={handleSaveSettings}
                 className="w-full bg-blue-600 text-white py-3 rounded-lg font-bold hover:bg-blue-700 mt-4"
               >

@@ -7,7 +7,6 @@ CREATE TABLE IF NOT EXISTS restaurants (
     name TEXT NOT NULL,
     address TEXT,
     phone TEXT,
-    license_key TEXT UNIQUE,
     created_at TIMESTAMP DEFAULT NOW()
 );
 
@@ -154,6 +153,6 @@ CREATE TABLE IF NOT EXISTS shifts (
 );
 
 -- DEFAULT RESTAURANT (Generic Tenant for testing)
-INSERT INTO restaurants (id, name, license_key) 
-VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Default Restaurant', 'TEST-KEY-123')
+INSERT INTO restaurants (id, name) 
+VALUES ('a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11', 'Default Restaurant')
 ON CONFLICT (id) DO NOTHING;

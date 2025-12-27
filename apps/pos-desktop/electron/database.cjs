@@ -547,28 +547,46 @@ function initDB() {
 }
 
 function seedDefaults() {
-    // Admin
+    const OLD_DATE = '2000-01-01T00:00:00.000Z';
+
+    // Admin (Fixed UUID to avoid duplicates)
+    const ADMIN_ID = '00000000-0000-0000-0000-000000000001';
     const adminExists = db.prepare("SELECT * FROM users WHERE role = 'admin'").get();
     if (!adminExists) {
-        const { salt, hash } = hashPIN('0000');
-        db.prepare("INSERT INTO users (id, name, pin, role, salt, restaurant_id) VALUES (?, 'Admin', ?, 'admin', ?, ?)").run(uuidv4(), hash, salt, RESTAURANT_ID);
-        console.log("✅ Default Admin created: PIN 0000");
+        // Check if our fixed admin exists by ID (to be safe)
+        const fixedAdmin = db.prepare("SELECT * FROM users WHERE id = ?").get(ADMIN_ID);
+        if (!fixedAdmin) {
+            const { salt, hash } = hashPIN('0000');
+            // updated_at ni eski sana bilan kiritamiz, toki serverdagi ma'lumot ustunlik qilsin
+            db.prepare(`INSERT INTO users (id, name, pin, role, salt, restaurant_id, updated_at, is_synced) VALUES (?, 'Admin', ?, 'admin', ?, ?, ?, 0)`).run(ADMIN_ID, hash, salt, RESTAURANT_ID, OLD_DATE);
+            console.log("✅ Default Admin created: PIN 0000");
+        }
     }
 
     // Settings
     const nextCheck = db.prepare("SELECT value FROM settings WHERE key = 'next_check_number'").get();
     if (!nextCheck) {
-        db.prepare("INSERT INTO settings (key, value) VALUES ('next_check_number', '1')").run();
+        db.prepare(`INSERT INTO settings (key, value, updated_at, is_synced) VALUES ('next_check_number', '1', ?, 0)`).run(OLD_DATE);
     }
 
     // Default Kitchens
     const kCount = db.prepare("SELECT count(*) as count FROM kitchens").get().count;
     if (kCount === 0) {
-        const insertK = db.prepare("INSERT INTO kitchens (id, name, printer_ip, printer_type, restaurant_id) VALUES (?, ?, ?, ?, ?)");
-        insertK.run(uuidv4(), 'Issiq Oshxona', 'Microsoft Print to PDF', 'driver', RESTAURANT_ID);
-        insertK.run(uuidv4(), 'Bar', 'Microsoft Print to PDF', 'driver', RESTAURANT_ID);
-        insertK.run(uuidv4(), 'Sovuq Oshxona', 'Microsoft Print to PDF', 'driver', RESTAURANT_ID);
+        const insertK = db.prepare(`INSERT INTO kitchens (id, name, printer_ip, printer_type, restaurant_id, updated_at, is_synced) VALUES (?, ?, ?, ?, ?, ?, 0)`);
+        insertK.run(uuidv4(), 'Issiq Oshxona', 'Microsoft Print to PDF', 'driver', RESTAURANT_ID, OLD_DATE);
+        insertK.run(uuidv4(), 'Bar', 'Microsoft Print to PDF', 'driver', RESTAURANT_ID, OLD_DATE);
+        insertK.run(uuidv4(), 'Sovuq Oshxona', 'Microsoft Print to PDF', 'driver', RESTAURANT_ID, OLD_DATE);
         console.log("✅ Default Kitchens created.");
+    }
+
+    // Default SMS Templates
+    const tCount = db.prepare("SELECT count(*) as count FROM sms_templates").get().count;
+    if (tCount === 0) {
+        const insertT = db.prepare(`INSERT INTO sms_templates (id, type, title, content, restaurant_id, updated_at, is_synced) VALUES (?, ?, ?, ?, ?, ?, 0)`);
+        insertT.run(uuidv4(), 'birthday', 'Tug\'ilgan kun', 'Hurmatli {name}! Sizni tug\'ilgan kuningiz bilan tabriklaymiz! Biz bilan bo\'lganingiz uchun rahmat.', RESTAURANT_ID, OLD_DATE);
+        insertT.run(uuidv4(), 'debt_reminder', 'Qarz eslatmasi', 'Hurmatli {name}! Sizning {amount} so\'m qarzingiz mavjud. Iltimos, to\'lovni amalga oshiring.', RESTAURANT_ID, OLD_DATE);
+        insertT.run(uuidv4(), 'news', 'Yangiliklar', 'Hurmatli {name}! Bizda yangiliklar! ...', RESTAURANT_ID, OLD_DATE);
+        console.log("✅ Default SMS Templates created.");
     }
 }
 

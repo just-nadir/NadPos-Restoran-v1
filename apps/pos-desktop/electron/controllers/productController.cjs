@@ -20,11 +20,11 @@ module.exports = {
     },
 
     deleteCategory: (id) => {
-        // O'chirish mantiq: avval kategoriyaga tegishli barcha mahsulotlarni o'chirish
-        db.prepare('DELETE FROM products WHERE category_id = ?').run(id);
+        // Soft Delete: avval kategoriyaga tegishli barcha mahsulotlarni o'chirish
+        db.prepare("UPDATE products SET deleted_at = ?, is_synced = 0 WHERE category_id = ?").run(new Date().toISOString(), id);
 
         // Keyin kategoriyani o'chirish
-        const res = db.prepare('DELETE FROM categories WHERE id = ?').run(id);
+        const res = db.prepare("UPDATE categories SET deleted_at = ?, is_synced = 0 WHERE id = ?").run(new Date().toISOString(), id);
 
         notify('products', null);
         notify('categories', null);
@@ -36,23 +36,24 @@ module.exports = {
     FROM products p 
     LEFT JOIN categories c ON p.category_id = c.id 
     LEFT JOIN kitchens k ON p.destination = CAST(k.id AS TEXT)
+    WHERE p.deleted_at IS NULL
   `).all(),
 
     addProduct: (p) => {
         const id = crypto.randomUUID();
-        const res = db.prepare('INSERT INTO products (id, category_id, name, price, destination, is_active) VALUES (?, ?, ?, ?, ?, ?)').run(id, p.category_id, p.name, p.price, String(p.destination), 1);
+        const res = db.prepare('INSERT INTO products (id, category_id, name, price, destination, is_active, is_synced) VALUES (?, ?, ?, ?, ?, ?, 0)').run(id, p.category_id, p.name, p.price, String(p.destination), 1);
         notify('products', null);
         return res;
     },
 
     toggleProductStatus: (id, status) => {
-        const res = db.prepare('UPDATE products SET is_active = ? WHERE id = ?').run(status, id);
+        const res = db.prepare('UPDATE products SET is_active = ?, is_synced = 0 WHERE id = ?').run(status, id);
         notify('products', null);
         return res;
     },
 
     deleteProduct: (id) => {
-        const res = db.prepare('DELETE FROM products WHERE id = ?').run(id);
+        const res = db.prepare("UPDATE products SET deleted_at = ?, is_synced = 0 WHERE id = ?").run(new Date().toISOString(), id);
         notify('products', null);
         return res;
     }

@@ -10,7 +10,7 @@ function hashPIN(pin, salt) {
 }
 
 module.exports = {
-  getUsers: () => db.prepare('SELECT id, name, role FROM users').all(), // PINni qaytarmaymiz (xavfsizlik)
+  getUsers: () => db.prepare('SELECT id, name, role FROM users WHERE deleted_at IS NULL').all(), // PINni qaytarmaymiz (xavfsizlik)
 
   saveUser: (user) => {
     // PIN kod validatsiyasi (faqat raqamlar)
@@ -56,11 +56,11 @@ module.exports = {
   deleteUser: (id) => {
     const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
     if (user && user.role === 'admin') {
-      const adminCount = db.prepare("SELECT count(*) as count FROM users WHERE role = 'admin'").get().count;
+      const adminCount = db.prepare("SELECT count(*) as count FROM users WHERE role = 'admin' AND deleted_at IS NULL").get().count;
       if (adminCount <= 1) throw new Error("Oxirgi adminni o'chirib bo'lmaydi!");
     }
 
-    const res = db.prepare('DELETE FROM users WHERE id = ?').run(id);
+    const res = db.prepare("UPDATE users SET deleted_at = ?, is_synced = 0 WHERE id = ?").run(new Date().toISOString(), id);
     log.warn(`XODIM: Xodim o'chirildi. ID: ${id}, Ism: ${user?.name}`);
     notify('users', null);
     return res;
@@ -68,7 +68,7 @@ module.exports = {
 
   login: (pin) => {
     // Barcha userlarni olamiz va tekshiramiz (chunki bizda salt userga bog'liq)
-    const users = db.prepare('SELECT * FROM users').all();
+    const users = db.prepare('SELECT * FROM users WHERE deleted_at IS NULL').all();
 
     const foundUser = users.find(u => {
       // Agar eski formatda (salt yo'q) bo'lsa, to'g'ridan-to'g'ri tekshir (migratsiya tugaguncha ehtiyot shart)

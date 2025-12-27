@@ -12,7 +12,6 @@
         "dev:server": "npm run start:dev --workspace=apps/cloud-server",
         "build:pos": "npm run build --workspace=apps/pos-desktop",
         "build:cloud-admin": "npm run build --workspace=apps/cloud-admin",
-        "build:server": "npm run build --workspace=apps/cloud-server",
-        "license-manager": "npm run electron:dev --workspace=apps/license-manager"
+        "build:server": "npm run build --workspace=apps/cloud-server"
     }
 }

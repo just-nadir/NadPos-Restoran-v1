@@ -56,4 +56,6 @@ graph TD
 2.  **Sinxronizatsiya**:
     -   **Push**: POS dagi o'zgarishlar (`is_synced=0`) serverga yuboriladi.
     -   **Pull**: Serverdagi so'nggi o'zgarishlar (`last_pulled_at` dan keyingi) POS ga yuklanadi.
+    -   **Logic**: Dastur ishga tushganda **AVVAL PULL**, keyin PUSH bajariladi.
+    -   **Deletions**: O'chirishlar **Soft Delete** (`deleted_at`) orqali amalga oshiriladi va sinxronizatsiya qilinadi.
 

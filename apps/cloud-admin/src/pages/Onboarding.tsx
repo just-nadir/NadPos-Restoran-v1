@@ -7,20 +7,18 @@ import api from '../lib/api';
 const Onboarding: React.FC = () => {
     const navigate = useNavigate();
     const [name, setName] = useState('');
-    const [licenseKey, setLicenseKey] = useState('');
     const [id, setId] = useState('');
     const [loading, setLoading] = useState(false);
 
     const generateKeys = () => {
         setId(uuidv4());
-        setLicenseKey(`LIC-${Math.random().toString(36).substr(2, 9).toUpperCase()}`);
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setLoading(true);
         try {
-            await api.post('/restaurants', { id, name, licenseKey });
+            await api.post('/restaurants', { id, name });
             alert('Restoran muvaffaqiyatli qo\'shildi!');
             navigate('/dashboard');
         } catch (error: any) {
@@ -61,36 +59,27 @@ const Onboarding: React.FC = () => {
                                     className="mt-1 block w-full bg-gray-100 border border-gray-300 rounded-md p-2 text-gray-500"
                                 />
                             </div>
-                            <div className="flex-1">
-                                <label className="block text-sm font-medium text-gray-700">License Key</label>
-                                <input
-                                    type="text"
-                                    readOnly
-                                    value={licenseKey}
-                                    className="mt-1 block w-full bg-gray-100 border border-gray-300 rounded-md p-2 text-gray-500"
-                                />
-                            </div>
+
+                            {(!id) && (
+                                <button
+                                    type="button"
+                                    onClick={generateKeys}
+                                    className="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700"
+                                >
+                                    Generate ID & Key
+                                </button>
+                            )}
+
+                            {(id) && (
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400"
+                                >
+                                    {loading ? 'Saqlanmoqda...' : 'Complete Onboarding'}
+                                </button>
+                            )}
                         </div>
-
-                        {(!id || !licenseKey) && (
-                            <button
-                                type="button"
-                                onClick={generateKeys}
-                                className="w-full bg-indigo-600 text-white py-2 rounded-md hover:bg-indigo-700"
-                            >
-                                Generate ID & Key
-                            </button>
-                        )}
-
-                        {(id && licenseKey) && (
-                            <button
-                                type="submit"
-                                disabled={loading}
-                                className="w-full bg-green-600 text-white py-2 rounded-md hover:bg-green-700 disabled:bg-gray-400"
-                            >
-                                {loading ? 'Saqlanmoqda...' : 'Complete Onboarding'}
-                            </button>
-                        )}
                     </form>
                 </div>
             </div>

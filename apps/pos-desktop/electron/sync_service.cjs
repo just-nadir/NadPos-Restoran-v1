@@ -8,8 +8,23 @@ let isSyncing = false;
 
 // Tables to sync
 const TABLES = [
-    'users', 'kitchens', 'halls', 'tables', 'categories', 'products',
-    'customers', 'sales', 'sale_items', 'shifts', 'settings', 'sms_templates', 'sms_logs'
+    'users',
+    'kitchens',
+    'halls',
+    'tables',
+    'categories',
+    'products',
+    'customers',
+    'shifts',
+    'sales',
+    'sale_items',
+    'order_items',
+    'debt_history',
+    'customer_debts',
+    'cancelled_orders',
+    'settings',
+    'sms_templates',
+    'sms_logs'
 ];
 
 const TABLE_SCHEMAS = {};
@@ -145,8 +160,8 @@ function startSyncService() {
         if (isSyncing) return;
         isSyncing = true;
 
-        const pushed = await pushChanges();
         const pulled = await pullChanges();
+        const pushed = await pushChanges();
 
         // Always notify online if we successfully checked (didn't catch an error)
         // Since error states are handled inside push/pull, if we are here we are "online"
@@ -217,13 +232,17 @@ async function pullChanges() {
 
 function applyChanges(tablesData) {
     db.transaction(() => {
-        for (const [table, rows] of Object.entries(tablesData)) {
-            // Skip invalid tables
-            if (!TABLES.includes(table)) continue;
+        // TABLES ro'yxati bo'yicha tartib bilan aylanamiz (Foreign Key xatoligini oldini olish uchun)
+        for (const table of TABLES) {
+            // Agar serverdan kelgan o'zgarishlar ichida shu jadval bo'lmasa, o'tkazib yuboramiz
+            if (!tablesData[table]) continue;
+
+            const rows = tablesData[table];
 
             const validColumns = TABLE_SCHEMAS[table];
 
             for (const row of rows) {
+                // ... (existing code for cleaning record)
                 // Ensure is_synced = 1
                 const record = { ...row, is_synced: 1 };
                 const cleanRecord = {};
@@ -241,7 +260,26 @@ function applyChanges(tablesData) {
 
                 if (Object.keys(cleanRecord).length === 0) continue;
 
+                // SPECIAL LOGIC: ADMIN CONSOLIDATION
+                // Agar serverdan kelayotgan user Admin bo'lsa va bizda boshqa ID bilan Admin bo'lsa (ayniqsa Default Admin)
+                // uni o'chirib tashlaymiz, toki 2 ta admin bo'lib qolmasin.
+                if (table === 'users' && cleanRecord.role === 'admin' && !cleanRecord.deleted_at) {
+                    const existingAdmins = db.prepare("SELECT id FROM users WHERE role = 'admin' AND deleted_at IS NULL").all();
+                    for (const admin of existingAdmins) {
+                        if (admin.id !== cleanRecord.id) {
+                            // Agar bizdagi admin servernikidan farq qilsa, demak bu eski yoki default admin -> o'chiramiz/yashiramiz
+                            // Biroq, ehtiyot bo'lish kerak.
+                            // Eng yaxshisi: Agar bizdagi adminning IDsi biz bilgan "Default Fixed ID" bo'lsa, aniq o'chiramiz.
+                            // Yoki oddiyroq: Agar serverdan admin keldi, bizdagi boshqa barcha adminlarni "deleted_at" qilib yuboramiz (agar o'zi bo'lmasa).
+                            // Shunda serverdagi "Primary" admin qoladi.
+                            db.prepare("UPDATE users SET deleted_at = ?, is_synced = 1 WHERE id = ?").run(new Date().toISOString(), admin.id);
+                            console.log(`⚠️ Duplicate Admin fix: Marked local admin ${admin.id} as deleted in favor of ${cleanRecord.id}`);
+                        }
+                    }
+                }
+
                 // Prepare SQL
+                // ... (rest of the insertion logic)
                 const columns = Object.keys(cleanRecord); // only valid columns
                 const cols = columns.map(k => `"${k}"`).join(',');
                 const vals = columns.map(k => `@${k}`).join(',');

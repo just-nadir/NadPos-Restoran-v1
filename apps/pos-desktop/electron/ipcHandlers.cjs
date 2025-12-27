@@ -11,7 +11,8 @@ const staffController = require('./controllers/staffController.cjs');
 const userController = require('./controllers/userController.cjs'); // Customers & Debtors
 const smsController = require('./controllers/smsController.cjs');   // SMS Marketing
 // const licenseController = require('./controllers/licenseController.cjs'); // License System (REMOVED)
-const licenseManager = require('./utils/licenseManager.cjs'); // New File-Based License System
+
+
 
 function registerIpcHandlers(ipcMain) {
 
@@ -127,13 +128,6 @@ function registerIpcHandlers(ipcMain) {
         // Hozircha filter logikasi controller ichida oddiy broadcast
         return await smsController.sendBroadcast(message);
     });
-
-    // ==========================================
-    // 8. LICENSE SYSTEM (Litsenziya) - NEW FILE BASED
-    // ==========================================
-    ipcMain.handle('license-get-info', () => licenseManager.checkLicense());
-    ipcMain.handle('license-create-request', () => licenseManager.createRequestFile());
-    ipcMain.handle('license-get-hwid', () => licenseManager.getHwid());
 
     // ==========================================
     // 9. TELEGRAM BOT (Yangi Modul)

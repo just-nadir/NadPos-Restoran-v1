@@ -4,6 +4,7 @@
 Hozirda asosiy e'tibor tizimning barqarorligini ta'minlash, VPS serverda ishlashini nazorat qilish va yuzaga kelishi mumkin bo'lgan kichik xatoliklarni tuzatishga qaratilgan. "Memory Bank" tizimi endi loyihaning haqiqiy holatini aks ettirishi kerak.
 
 ## So'nggi O'zgarishlar
+-   **License Functionality Removed**: `apps/license-manager` va barcha litsenziya tekshiruvlari olib tashlandi.
 -   **Multi-Restoran Tizimi**: `Restaurant` entitysiga `access_key` qo'shildi, Serverda identifikatsiya qilish va POS uchun `Onboarding` jarayoni yaratildi.
 -   **Cloud Admin Panel**: Restoranlarni yaratish, ID va Access Key olish uchun Dashboard va yangi sahifalar qo'shildi. `https://halboldi.uz` da ishga tushirildi.
 -   **VPS Deploy**: `cloud-server` va `cloud-admin` VPS ga (`213.142.148.35`) muvaffaqiyatli joylandi. Nginx proxy va SSL sozlandi.
@@ -13,7 +14,13 @@ Hozirda asosiy e'tibor tizimning barqarorligini ta'minlash, VPS serverda ishlash
     -   Admin Dashboard API manzili to'g'irlandi.
     -   **Fix**: Admin Dashboard restoranlar ro'yxatida `key` ko'rinmaslik muammosi hal qilindi (`licenseKey` -> `accessKey`).
     -   **Waiter App**: Brauzerda ochilganda Onboarding ekranini avtomatik o'tkazib yuborish qo'shildi (`window.electron` tekshiruvi).
-    -   **Sync Fix**: SQLite ga yozishda "Binding" xatosi tuzatildi (Obyektlarni tozalash va Stringga o'girish).
+-   **Sync Logic Overhaul**:
+    -   **Foreign Key Fix**: `sync_service.cjs` da jadvallarni yuklash tartibi (Topological Sort) to'g'irlandi.
+    -   **Data Overwrite Protection**: Lokal baza "fresh install" bo'lganda serverdagi ma'lumotni ezib yubormasligi uchun **Pull First** (Avval yuklab olish, keyin jo'natish) logikasi qo'shildi.
+    -   **Admin Consolidation**: Agar serverdan Admin kelsa va lokalda Default Admin bo'lsa, lokal admin avtomatik o'chiriladi.
+-   **Soft Delete**: `products`, `tables`, `users`, `customers` jadvallari uchun **Soft Delete** (`deleted_at`) tizimi joriy qilindi. Bu "o'chirilgan ma'lumotlarning qaytib qolishi" muammosini hal qildi.
+-   **Cloud Server Sync**: `settings`, `kitchens`, `shifts`, `sms_templates` jadvallari `pull` ro'yxatiga qo'shildi (Server update talab qilinadi).
+-   **Database**: Default ma'lumotlar (Admin, Kitchens) endi eski sana (2000-yil) bilan yaratiladi, toki serverdagi yangi ma'lumot ustunlik qilsin.
 
 
 

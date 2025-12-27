@@ -12,6 +12,12 @@
 -   [x] **Bug Fix**: Admin Panel Dashboard da restoran kaliti ko'rinishi tuzatildi.
 -   [x] **Improvement**: Waiter App brauzerda ochilganda "Restoran ID" so'ramasligi tuzatildi.
 -   [x] **Stabilizatsiya**: Sync Service endi SQLite xatolariga chidamli (Binding error fixed).
+-   [x] **Sync Fixes**: 
+    -   Foreign Key xatoliklari (Topological Sort) tuzatildi.
+    -   "Fresh Install" da ma'lumotlar yo'qolishi (Data Overwrite) oldini olish uchun Pull-First va Timestamp logikasi qo'shildi.
+    -   O'chirilgan ma'lumotlar qaytib kelmasligi uchun **Soft Delete** tizimi qo'shildi.
+    -   Dual Admin muammosi bartaraf etildi.
+-   [x] **Restoran Ma'lumotlari**: Sozlamalar va boshqa jadvallar sinxronizatsiyasi tiklandi (Cloud Server update).
 
 
 
