@@ -1,6 +1,6 @@
 import { Entity, Column, PrimaryColumn, CreateDateColumn } from 'typeorm';
 
-@Entity('restaurants')
+@Entity('restaurants_v2')
 export class Restaurant {
     @PrimaryColumn('uuid')
     id: string;
@@ -9,6 +9,18 @@ export class Restaurant {
     name: string;
 
 
+
+    @Column({ nullable: true })
+    address: string;
+
+    @Column({ nullable: true })
+    phone: string;
+
+    @Column({ name: 'subscription_end_date', type: 'timestamp', nullable: true })
+    subscriptionEndDate: Date;
+
+    @Column({ name: 'is_active', default: true })
+    isActive: boolean;
 
     @CreateDateColumn({ name: 'created_at' })
     createdAt: Date;

@@ -549,13 +549,11 @@ function initDB() {
 function seedDefaults() {
     const OLD_DATE = '2000-01-01T00:00:00.000Z';
 
-    // Admin (Fixed UUID to avoid duplicates)
-    const ADMIN_ID = '00000000-0000-0000-0000-000000000001';
+    // Admin (Random UUID to avoid global conflicts)
+    const ADMIN_ID = uuidv4();
     const adminExists = db.prepare("SELECT * FROM users WHERE role = 'admin'").get();
     if (!adminExists) {
-        // Check if our fixed admin exists by ID (to be safe)
-        const fixedAdmin = db.prepare("SELECT * FROM users WHERE id = ?").get(ADMIN_ID);
-        if (!fixedAdmin) {
+        if (!adminExists) {
             const { salt, hash } = hashPIN('0000');
             // updated_at ni eski sana bilan kiritamiz, toki serverdagi ma'lumot ustunlik qilsin
             db.prepare(`INSERT INTO users (id, name, pin, role, salt, restaurant_id, updated_at, is_synced) VALUES (?, 'Admin', ?, 'admin', ?, ?, ?, 0)`).run(ADMIN_ID, hash, salt, RESTAURANT_ID, OLD_DATE);

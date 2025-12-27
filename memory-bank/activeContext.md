@@ -14,6 +14,9 @@ Hozirda asosiy e'tibor tizimning barqarorligini ta'minlash, VPS serverda ishlash
     -   Admin Dashboard API manzili to'g'irlandi.
     -   **Fix**: Admin Dashboard restoranlar ro'yxatida `key` ko'rinmaslik muammosi hal qilindi (`licenseKey` -> `accessKey`).
     -   **Waiter App**: Brauzerda ochilganda Onboarding ekranini avtomatik o'tkazib yuborish qo'shildi (`window.electron` tekshiruvi).
+-   **Hotfix 500 Error**:
+    -   **Issue**: `synchronize: false` prevented schema updates; `synchronize: true` failed due to `NULL` names.
+    -   **Fix**: Manually deleted invalid `NULL` records and forced schema migration.
 -   **Sync Logic Overhaul**:
     -   **Foreign Key Fix**: `sync_service.cjs` da jadvallarni yuklash tartibi (Topological Sort) to'g'irlandi.
     -   **Data Overwrite Protection**: Lokal baza "fresh install" bo'lganda serverdagi ma'lumotni ezib yubormasligi uchun **Pull First** (Avval yuklab olish, keyin jo'natish) logikasi qo'shildi.
